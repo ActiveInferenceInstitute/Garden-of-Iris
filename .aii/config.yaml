@@ -1,0 +1,37 @@
+# AII sidecar — InstituteOS metadata. Schema: instituteos.platform.aii_sidecar
+meta:
+  updated: '2026-06-30'
+repo:
+  name: Garden-of-Iris
+  slug: garden-of-iris
+  full_name: ActiveInferenceInstitute/Garden-of-Iris
+  description: Garden-of-Iris — an Active Inference Institute repository.
+  default_branch: master
+institute:
+  category: research
+  steward: Active Inference Institute
+ecosystem:
+  relations:
+  - repo: ActiveInferenceInstitute/InstituteOS
+    relation: referenced-by
+    note: Federated via the InstituteOS .aii manifest.
+  links:
+    github: https://github.com/ActiveInferenceInstitute/Garden-of-Iris
+    website: https://www.activeinference.org
+artifacts:
+- path: .
+  description: Repository root.
+provenance:
+  license: CC-BY-4.0
+  citation:
+    text: Active Inference Institute — Garden-of-Iris.
+instituteos:
+  tags:
+  - garden
+  - iris
+capabilities:
+- documentation
+tasks:
+  inventory:
+    cmd: git ls-files
+    description: List tracked files.
