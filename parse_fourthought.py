@@ -20,8 +20,8 @@ models = {
 }
 
 # Usage
-# python3 parse_claims.py http://example.com
-# python3 parse_claims.py /path/to/my/pdf/purplepage.pdf
+# python3 parse_fourthought.py http://example.com
+# python3 parse_fourthought.py /path/to/my/pdf/purplepage.pdf
 
 # Set the OpenAI API key from the environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
