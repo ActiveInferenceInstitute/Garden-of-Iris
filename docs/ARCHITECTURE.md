@@ -53,8 +53,8 @@ pipeline:
 ```
 
 The only tracked training data in the repository are
-[`data/semantic-iris.csv`](DATA.md#data-semantic-iriscsv) and
-[`data/chat-iris.csv`](DATA.md#data-chat-iriscsv); the inputs consumed by
+[`data/semantic-iris.csv`](DATA.md#datasemantic-iriscsv) and
+[`data/chat-iris.csv`](DATA.md#datachat-iriscsv); the inputs consumed by
 `hindsight.py` and `twitter_archive.py` are personal archives that are
 deliberately **not** committed.
 
@@ -130,7 +130,7 @@ period summaries and fine-tuning data. Requires `OPENAI_API_KEY`.
   consumed: `Post date` (format `%m/%d/%y %I:%M %p`, timezone US/Pacific),
   `Good` (a two-line cell of the form `+N` / `-M`, split into `Positive` /
   `Negative`), `Thought`, `Privacy`, `Truth`, `Type`. See
-  [DATA.md](DATA.md#prophet_thought_dump_all_thoughts_2023csv).
+  [DATA.md](DATA.md#prophet_thought_dump_all_thoughts_2023csv-schema).
 - `twitter_archive.csv` — produced by `twitter_archive.py`. Columns
   `created_at`, `full_text`, `retweet_count`, `favorite_count` (the `lang`
   column is dropped).

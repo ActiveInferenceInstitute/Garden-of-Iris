@@ -64,7 +64,7 @@ python discord_bot.py
 ```
 
 `iris_apparently.py` is a non-runnable sketch; see
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#iris_apparentlypy) for the known
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#iris_apparentlypy-democraticllm-sketch-not-runnable) for the known
 blockers.
 
 ## Requirements
