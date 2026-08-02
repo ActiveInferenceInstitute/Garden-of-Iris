@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Environment / secrets
+.env
+
+# macOS
+.DS_Store
+
+# Personal archives and generated data (see docs/DATA.md)
+data/tweets.js
+prophet_thought_dump_ALL_THOUGHTS_2023.csv
+tarot_text.csv
+ceresonepage
+twitter_archive.csv
+ceresonepage.csv
+iris_training-data.csv
+daily_summaries.csv
+weekly_summaries.csv
+monthly_summaries.csv
+temporal_iris.csv
+weekly_iris.csv
+monthly_iris.csv
