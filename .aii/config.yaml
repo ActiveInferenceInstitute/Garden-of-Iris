@@ -1,11 +1,11 @@
 # AII sidecar — InstituteOS metadata. Schema: instituteos.platform.aii_sidecar
 meta:
-  updated: '2026-06-30'
+  updated: '2026-08-02'
 repo:
   name: Garden-of-Iris
   slug: garden-of-iris
   full_name: ActiveInferenceInstitute/Garden-of-Iris
-  description: Garden-of-Iris — an Active Inference Institute repository.
+  description: "Experimental Iris collective-intelligence toolkit: Discord bot, hindsight summarization, FourThought parsing, and data tooling."
   default_branch: master
 institute:
   category: research
