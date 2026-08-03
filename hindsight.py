@@ -711,37 +711,88 @@ def create_trackable_summaries(df):
     # over time, including any notable trends, patterns, or associations with other events.
     pass
 
-# Load and preprocess the CSV into a DataFrame
-df = load_and_preprocess_csv('prophet_thought_dump_ALL_THOUGHTS_2023.csv')
+def load_merged_data(fourthought_path='prophet_thought_dump_ALL_THOUGHTS_2023.csv',
+                     twitter_path='twitter_archive.csv'):
+    # Load fourthought labeled thoughts and the Twitter archive into one
+    # sorted DataFrame, tagged by platform.
+    df_thoughts = load_and_preprocess_csv(fourthought_path)
+    df_thoughts['Platform'] = 'fourthought'
 
-# Load fourthought labeled thoughts
-df_thoughts = load_and_preprocess_csv('prophet_thought_dump_ALL_THOUGHTS_2023.csv')
-df_thoughts['Platform'] = 'fourthought'
+    df_tweets = pd.read_csv(twitter_path)
+    df_tweets['Platform'] = 'twitter'
 
-df_tweets = pd.read_csv('twitter_archive.csv')
-df_tweets['Platform'] = 'twitter'
+    # Rename 'created_at' column to 'Post date' in df_tweets to match df_thoughts
+    df_tweets.rename(columns={'created_at': 'Post date'}, inplace=True)
 
-# Rename 'created_at' column to 'Post date' in df_tweets to match df_thoughts
-df_tweets.rename(columns={'created_at': 'Post date'}, inplace=True)
+    # Drop the 'lang' column from df_tweets
+    df_tweets.drop(columns=['lang'], inplace=True)
 
-# Drop the 'lang' column from df_tweets
-df_tweets.drop(columns=['lang'], inplace=True)
+    # Convert 'Post date' column to datetime in df_tweets
+    df_tweets['Post date'] = pd.to_datetime(df_tweets['Post date'], format='%a %b %d %H:%M:%S %z %Y').dt.tz_convert('US/Pacific')
+    df_tweets['retweet_count'] = df_tweets['retweet_count'].astype("Int64")
+    df_tweets['favorite_count'] = df_tweets['favorite_count'].astype("Int64")
 
-# Convert 'Post date' column to datetime in df_tweets
-df_tweets['Post date'] = pd.to_datetime(df_tweets['Post date'], format='%a %b %d %H:%M:%S %z %Y').dt.tz_convert('US/Pacific')
-df_tweets['retweet_count'] = df_tweets['retweet_count'].astype("Int64")
-df_tweets['favorite_count'] = df_tweets['favorite_count'].astype("Int64")
+    # Merge the two dataframes based on 'Post date'
+    df_merged = pd.concat([df_thoughts, df_tweets], axis=0, ignore_index=True, sort=False)
 
-# Merge the two dataframes based on 'Post date'
-df_merged = pd.concat([df_thoughts, df_tweets], axis=0, ignore_index=True, sort=False)
+    # Sort the merged dataframe by 'Post date'
+    df_merged.sort_values(by='Post date', inplace=True)
+    df_merged.reset_index(drop=True, inplace=True)
 
-# Sort the merged dataframe by 'Post date'
-df_merged.sort_values(by='Post date', inplace=True)
-df_merged.reset_index(drop=True, inplace=True)
+    return df_merged
 
-# Generate daily summaries using the preprocessed DataFrame
-#daily_summaries = create_daily_summaries(df_merged)
-#weekly_summaries = create_weekly_summaries()
-#monthly_summaries = create_monthly_summaries()
-#construct_weekly_training_data()
-construct_monthly_training_data()
+
+def main(argv=None):
+    # Command-line entry point for the hindsight pipeline. Each stage reads
+    # its inputs from the CSVs produced by the previous stage (see docs/DATA.md).
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Hindsight summarization and training-data pipeline.")
+    parser.add_argument("--fourthought", default='prophet_thought_dump_ALL_THOUGHTS_2023.csv',
+                        help="FourThought export CSV (default: prophet_thought_dump_ALL_THOUGHTS_2023.csv)")
+    parser.add_argument("--twitter", default='twitter_archive.csv',
+                        help="Twitter archive CSV produced by twitter_archive.py (default: twitter_archive.csv)")
+    parser.add_argument("--daily", action="store_true",
+                        help="Create daily summaries (writes daily_summaries.csv)")
+    parser.add_argument("--weekly", action="store_true",
+                        help="Create weekly summaries (requires daily_summaries.csv)")
+    parser.add_argument("--monthly", action="store_true",
+                        help="Create monthly summaries (requires weekly_summaries.csv)")
+    parser.add_argument("--seasonal", action="store_true",
+                        help="Create seasonal summaries (requires monthly_summaries.csv)")
+    parser.add_argument("--train-daily", action="store_true",
+                        help="Construct temporal_iris.csv from daily summaries")
+    parser.add_argument("--train-weekly", action="store_true",
+                        help="Construct weekly_iris.csv from weekly summaries")
+    parser.add_argument("--train-monthly", action="store_true",
+                        help="Construct monthly_iris.csv from monthly summaries")
+    parser.add_argument("--all", action="store_true",
+                        help="Run the full pipeline in order (daily, weekly, monthly, seasonal, training data)")
+    args = parser.parse_args(argv)
+
+    requested = any([args.daily, args.weekly, args.monthly, args.seasonal,
+                     args.train_daily, args.train_weekly, args.train_monthly, args.all])
+    if not requested:
+        parser.print_help()
+        return
+
+    if args.all or args.daily:
+        df_merged = load_merged_data(args.fourthought, args.twitter)
+        create_daily_summaries(df_merged)
+    if args.all or args.weekly:
+        create_weekly_summaries()
+    if args.all or args.monthly:
+        create_monthly_summaries()
+    if args.all or args.seasonal:
+        create_seasonal_summaries()
+    if args.all or args.train_daily:
+        construct_daily_training_data()
+    if args.all or args.train_weekly:
+        construct_weekly_training_data()
+    if args.all or args.train_monthly:
+        construct_monthly_training_data()
+
+
+if __name__ == "__main__":
+    main()
