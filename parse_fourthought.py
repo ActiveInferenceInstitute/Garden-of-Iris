@@ -2,6 +2,8 @@ import os
 import re
 import sys
 import openai
+import openai_legacy  # legacy Completion/ChatCompletion shim for openai >= 1.0
+openai_legacy.patch()
 import PyPDF2
 import requests
 

@@ -8,6 +8,8 @@ import dateutil
 
 import textwrap
 import openai
+import openai_legacy  # legacy Completion/ChatCompletion shim for openai >= 1.0
+openai_legacy.patch()
 import discord
 import asyncio
 import aiohttp

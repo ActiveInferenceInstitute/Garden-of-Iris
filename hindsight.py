@@ -8,6 +8,8 @@ import pandas as pd
 from datetime import datetime
 from itertools import islice
 import openai
+import openai_legacy  # legacy Completion/ChatCompletion shim for openai >= 1.0
+openai_legacy.patch()
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
