@@ -94,9 +94,24 @@ def patch(openai=None, api_key_env="OPENROUTER_API_KEY", base_url=OPENROUTER_BAS
     if openai is None:
         import openai
 
-    # Pre-1.0 packages already provide the legacy API; nothing to do.
-    if hasattr(openai, "Completion") and hasattr(openai, "ChatCompletion"):
-        return openai
+    # Pre-1.0 packages already provide the legacy API; nothing to do. Note
+    # that openai >= 1.0 also exposes `Completion` / `ChatCompletion`
+    # attributes, but only as APIRemovedInV1Proxy deprecation shims, so a
+    # plain hasattr() check is not enough: it must be gated on the version
+    # (or on the proxy type when the module lacks a version, e.g. in tests).
+    version = getattr(openai, "__version__", None)
+    if version is not None:
+        try:
+            major = int(str(version).split(".")[0])
+        except ValueError:
+            major = 1
+        if major == 0:
+            return openai
+    else:
+        completion_type = type(getattr(openai, "Completion", None))
+        if (hasattr(openai, "Completion") and hasattr(openai, "ChatCompletion")
+                and completion_type.__name__ != "APIRemovedInV1Proxy"):
+            return openai
 
     _client = None
 
