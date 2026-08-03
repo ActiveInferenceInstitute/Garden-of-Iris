@@ -15,10 +15,12 @@ from pprint import pprint
 # Define a regular expression pattern to match the thought types
 pattern = r"^(.*),\s*(PREDICTION|REFLECTION|STATEMENT|QUESTION)$"
 
+# Fine-tuned davinci models are retired; the slots map to catalog-verified
+# OpenRouter chat models (checked by scripts/check_openrouter_models.py).
 models = {
-    "semantic": "davinci:ft-personal:semantic-iris-davinci-3-2022-11-30-06-30-47",
-    "davinci": "text-davinci-003",
-    "thought_type": "davinci:ft-personal:thought-type-2023-03-05-06-24-25"
+    "semantic": "openai/gpt-4o-mini",
+    "davinci": "openai/gpt-4o-mini",
+    "thought_type": "openai/gpt-4o-mini"
 }
 
 # Usage
@@ -26,7 +28,7 @@ models = {
 # python3 parse_fourthought.py /path/to/my/pdf/purplepage.pdf
 
 # Set the OpenAI API key from the environment variable
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# (openai_legacy.patch() reads OPENROUTER_API_KEY, falling back to OPENAI_API_KEY)
 
 # Define the maximum length of each text chunk to send to OpenAI
 chunk_length = 3000
@@ -107,7 +109,7 @@ for i, text_chunk in tqdm(enumerate(text_chunks), total=len(text_chunks), unit='
     truncated_convo += conversation[-4:]
 
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo", 
+        model="openai/gpt-4o-mini", 
         messages=truncated_convo
     )
 

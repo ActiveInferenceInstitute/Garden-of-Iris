@@ -29,7 +29,7 @@ from discord.ui import Button, View, TextInput, Modal
 from discord.ext import commands
 
 discord_key = os.getenv("DISCORD_BOT_KEY")
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# API key is read by openai_legacy.patch() (OPENROUTER_API_KEY, falls back to OPENAI_API_KEY)
 airtable_key = os.environ["AIRTABLE_API_KEY"]
 
 intents = discord.Intents.default()
@@ -52,17 +52,19 @@ except:
 
 training_data = ""
 
+# Fine-tuned davinci models are retired; the slots map to catalog-verified
+# OpenRouter chat models (checked by scripts/check_openrouter_models.py).
 models = {
-	"living": "davinci:ft-personal:living-iris-2022-09-04-04-45-28",
-	"osiris": "davinci:ft-personal:osiris-the-unstructured-2022-09-28-02-31-57",
-	"2020": "davinci:ft-personal:2020-iris-2022-10-06-04-00-37",
-	"purple": "davinci:ft-personal:purple-iris-2022-07-14-03-48-19",
-	"semantic": "davinci:ft-personal:semantic-iris-davinci-3-2022-11-30-06-30-47",
-	"davinci": "text-davinci-003",
-	"chat-iris": "davinci:ft-personal:chat-iris-c-2023-03-15-05-59-14",
-	"chat-iris-b": "davinci:ft-personal:chat-iris-b-2023-03-11-18-20-31",
-	"chat-iris-a": "davinci:ft-personal:chat-iris-a-2023-03-10-21-44-19",
-	"chat-iris-0": "davinci:ft-personal:chat-iris-2023-03-10-18-48-23"
+	"living": "openai/gpt-4o-mini",
+	"osiris": "openai/gpt-4o-mini",
+	"2020": "openai/gpt-4o-mini",
+	"purple": "openai/gpt-4o-mini",
+	"semantic": "openai/gpt-4o-mini",
+	"davinci": "openai/gpt-4o-mini",
+	"chat-iris": "openai/gpt-4o",
+	"chat-iris-b": "openai/gpt-4o-mini",
+	"chat-iris-a": "openai/gpt-4o-mini",
+	"chat-iris-0": "openai/gpt-4o-mini"
 }
 
 people = []
@@ -152,7 +154,7 @@ def elaborate(ctx, prompt="prompt"):
 		if len(response_text) == 0:
 
 			response = openai.Completion.create(
-				model="text-davinci-002",
+				model="openai/gpt-4o-mini",
 				prompt=e_prompt,
 				temperature=1,
 				max_tokens=222,
@@ -182,7 +184,7 @@ def redo_view(ctx, prompt, question):
 		await interaction.response.defer()
 
 		response = openai.Completion.create(
-			model="text-davinci-002",
+			model="openai/gpt-4o-mini",
 			prompt=prompt,
 			temperature=1,
 			max_tokens=222,
@@ -368,7 +370,7 @@ async def question_pool(message):
 	conversation.append({"role": "assistant", "content": "I NEVER answer questions. I summarize questions and communal uncentainty. I ignore anything that doesn't end in a question mark. I will keep my summary very short or about 250 words long"})
 
 	response = openai.ChatCompletion.create(
-		model="gpt-4", 
+		model="openai/gpt-4o-mini", 
 		messages=conversation
 	)
 
@@ -437,7 +439,7 @@ async def fourthought_pool(message):
 		conversation.append({"role": "user", "content": "Please give guidance based on the thread so far. Focus this thread towards a specific future based on their input"})
 
 	response = openai.ChatCompletion.create(
-		model="gpt-4", 
+		model="openai/gpt-4o-mini", 
 		messages=conversation
 	)
 
@@ -488,7 +490,7 @@ async def prophecy_pool(message):
 	conversation.append({"role": "assistant", "content": "I will do what I can to help the thread. I will vary my outputs and how I help regarding the future, but I will keep the focus on the future. My output will be under 300 words and I will mention the last thing said"})
 
 	response = openai.ChatCompletion.create(
-		model="gpt-4",
+		model="openai/gpt-4o-mini",
 		max_tokens=500, 
 		messages=conversation
 	)
@@ -592,10 +594,8 @@ async def frankeniris(message, answer=""):
 	print("total_length after")
 	print(total_length)
 
-	model = random.choice(["gpt-4", "gpt-3.5-turbo"])
-
 	response = openai.ChatCompletion.create(
-		model="gpt-3.5-turbo",
+		model="openai/gpt-4o-mini",
 		temperature=0.8,
 		max_tokens=500,
 		messages=conversation
@@ -730,7 +730,7 @@ async def infuse(ctx, *, link):
 			truncated_convo += conversation[-3:]
 
 			response = openai.ChatCompletion.create(
-				model="gpt-4",
+				model="openai/gpt-4o-mini",
 				temperature=0.75,
 				messages=truncated_convo
 			)
@@ -810,7 +810,7 @@ async def davinci(ctx, *, thought):
 	thought_prompt = thought
 
 	response = openai.Completion.create(
-		model="text-davinci-002",
+		model="openai/gpt-4o-mini",
 		prompt=thought_prompt,
 		temperature=0.69,
 		max_tokens=222,
@@ -884,7 +884,7 @@ async def pullcard(ctx, *, intention=""):
 		prompt += "\n\n"
 
 		response = openai.Completion.create(
-			model="text-davinci-002",
+			model="openai/gpt-4o-mini",
 			prompt=prompt,
 			temperature=0.8,
 			max_tokens=222,
@@ -978,7 +978,7 @@ async def ask_group(ctx, *, question=""):
 
 	for prompt in prompts:
 		summarized = openai.Completion.create(
-			model="text-davinci-002",
+			model="openai/gpt-4o-mini",
 			prompt=prompt,
 			temperature=0.6,
 			max_tokens=222,

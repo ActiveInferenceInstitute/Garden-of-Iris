@@ -8,10 +8,10 @@ import pandas as pd
 from datetime import datetime
 from itertools import islice
 import openai
-import openai_legacy  # legacy Completion/ChatCompletion shim for openai >= 1.0
+import openai_legacy  # legacy Completion/ChatCompletion shim routed via OpenRouter
 openai_legacy.patch()
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# API key is read by openai_legacy.patch() (OPENROUTER_API_KEY, falls back to OPENAI_API_KEY)
 
 def load_and_preprocess_csv(csv_file):
     # This function loads data from a CSV file and preprocesses it to extract 'Positive' and 'Negative' values.
@@ -43,7 +43,7 @@ def create_summary(conversation):
     while True:
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-4",
+                model="openai/gpt-4o-mini",
                 messages=conversation
             )
             response = response.choices[0].message.content.strip()
