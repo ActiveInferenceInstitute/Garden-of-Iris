@@ -28,7 +28,8 @@ model, and the data pipeline that supports it. Start with the
 | `discord_bot.py` | Discord bot "Iris": auto-summarizing pools, DM relay, slash commands |
 | `hindsight.py` | Hindsight summarization pipeline (daily → weekly → monthly) + training-data construction |
 | `parse_fourthought.py` | CLI that parses a URL or PDF into FourThought thought types |
-| `iris_apparently.py` | Unfinished TensorFlow "DemocraticLLM" transformer sketch |
+| `iris_apparently.py` | Repaired TensorFlow "DemocraticLLM" transformer sketch (source + temporal embeddings); smoke-tested, not trained |
+| `openai_legacy.py` | Compatibility shim: legacy `openai.Completion` / `ChatCompletion` API on `openai >= 1.0` |
 | `twitter_archive.py` | Converts a Twitter archive export to CSV |
 | `text_process.py` | Builds prompt→completion sentence pairs with NLTK |
 

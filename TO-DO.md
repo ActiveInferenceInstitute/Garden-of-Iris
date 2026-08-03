@@ -58,21 +58,44 @@ Sections are defined as:
   `#data-semantic-iriscsv`, etc.); corrected and verified by script.
   `README.md`, `docs/ARCHITECTURE.md` ✓ `02da58a`
 
-## Open / deferred
+## Follow-up pass — deferred items resolved (2026-08-02)
 
-- **O1 (Major) — Repair `iris_apparently.py`.** Add the missing `layers`
-  import, fix module-level call ordering, and reconcile the `fit` call with
-  `DemocraticLLM.call`. *Deferred:* code change beyond a documentation pass;
-  the file is an intentionally unfinished sketch, and its behavior is
-  documented rather than altered.
-- **O2 (Major) — CI/lint workflow.** No `.github/` exists; adding one would
-  introduce a new toolchain. *Deferred:* out of scope for this pass (no
-  heavyweight toolchains for docs).
-- **O3 (Medium) — Migrate to `openai >= 1.0` API surface.** All scripts use
-  `openai.Completion` / `openai.ChatCompletion`. *Deferred:* code migration
-  with behavioral risk; legacy status documented in `docs/ARCHITECTURE.md`.
-- **O4 (Medium) — `hindsight.py` main block cleanup.** Loads the same CSV
-  twice, and only `construct_monthly_training_data()` executes (summarization
-  is commented out). *Deferred:* code refactor, out of scope for this pass.
-- **O5 (Minor) — CRLF line endings in `data/*.csv`.** Left as-is: data files,
-  not documentation; converting them would churn tracked content.
+The items below were originally deferred from the documentation pass and were
+implemented on request in a follow-up pass. Verification notes for each are in
+[REVIEW_LOG_2026-08-02.md](REVIEW_LOG_2026-08-02.md).
+
+- **O1 (Major) — Repair `iris_apparently.py`** — **COMPLETED** `513cdab`:
+  missing `layers` import added, module-level training block moved into
+  `main()` under a `__main__` guard, and `DemocraticLLM` reconciled with the
+  documented `fit` call. Runtime-verified against TensorFlow 2.x / Python
+  3.12 (import, masks, forward pass, one `fit` step, no-source fallback,
+  `main()` preprocessing glue, full-config forward). A full training run
+  remains out of reach because no `text, source_id, timestamp` dataset is
+  committed.
+- **O2 (Major) — CI/lint workflow** — **COMPLETED** `11a2550`: GitHub Actions
+  with a Python syntax check, the markdown link/anchor checker, and an
+  `openai >= 1.0` shim smoke test.
+- **O3 (Medium) — Migrate to `openai >= 1.0` API surface** — **COMPLETED**
+  `1219457`: `openai_legacy.py` shim patches `openai.Completion` /
+  `openai.ChatCompletion` / `openai.error.*` onto the 1.x client API; no-op on
+  pre-1.0 installs. Verified against a fake 1.x module (patch path, exception
+  mapping, idempotency, pre-1.0 no-op path).
+- **O4 (Medium) — `hindsight.py` main block cleanup** — **COMPLETED**
+  `c7226c2`: single FourThought load, argparse CLI (`--daily` … `--all`),
+  import is side-effect free. CLI wiring verified with stubbed `pandas` /
+  `openai`.
+- **O5 (Minor) — CRLF line endings in `data/*.csv`** — **COMPLETED**
+  `f18f219`: `.gitattributes` (`* text=auto`, `eol=lf` for py/md/csv/yaml/yml/
+  cff) plus `git add --renormalize`; index blobs verified byte-identical to
+  HEAD after stripping `\r`.
+
+### Still open
+
+- **Full training run of `iris_apparently.py`.** Requires a CSV with `text,
+  source_id, timestamp` columns; no such dataset exists in the repository.
+- **Real end-to-end runs of the OpenAI-backed scripts** (`discord_bot.py`,
+  `hindsight.py`, `parse_fourthought.py`). Requires valid API credentials and
+  the personal-archive inputs, which are not committed; only import/CLI-level
+  verification was performed.
+- **CI has not run on GitHub yet.** The workflow was pushed with this pass;
+  the first run will execute on the next push.

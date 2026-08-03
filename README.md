@@ -1,5 +1,7 @@
 # Garden-of-Iris
 
+[![CI](https://github.com/ActiveInferenceInstitute/Garden-of-Iris/actions/workflows/ci.yml/badge.svg)](https://github.com/ActiveInferenceInstitute/Garden-of-Iris/actions/workflows/ci.yml)
+
 Experimental toolkit for **Iris** — a collective-intelligence language model —
 and the data pipeline that feeds it. This repository is stewarded by the
 [Active Inference Institute](https://www.activeinference.org).
@@ -21,12 +23,15 @@ thoughts into daily/weekly/monthly summaries and fine-tuning data, a CLI that
 parses scraped web text into the four thought types, and an unfinished
 TensorFlow sketch of an Iris model architecture.
 
-> **Status: experimental.** These scripts were developed in 2022–2023 against
-> the legacy OpenAI API (`openai.Completion` / `openai.ChatCompletion`, package
-> version `<1.0`) and fine-tuned `davinci` models that no longer exist. They are
-> shared for study and reuse, not maintained as production software. Not every
-> script runs as-is today; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for
-> per-component notes.
+> **Status: experimental.** These scripts were developed in 2022–2023 around
+> fine-tuned `davinci` models that no longer exist, and are shared for study
+> and reuse rather than maintained as production software. They originally
+> targeted the legacy pre-1.0 OpenAI package; the in-repo `openai_legacy.py`
+> shim patches the modern `openai >= 1.0` client API back onto the legacy call
+> style, so the scripts import and issue requests against current packages
+> (the retired model IDs will still fail at request time). Per-component
+> notes, including what is runnable today, are in
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Repository layout
 
@@ -35,11 +40,14 @@ TensorFlow sketch of an Iris model architecture.
 | `discord_bot.py` | Discord bot "Iris": pool summarizers, DM relay, slash commands |
 | `hindsight.py` | Summarization pipeline: daily → weekly → monthly summaries, plus training-data construction |
 | `parse_fourthought.py` | CLI: parse a URL or PDF into FourThought thought types via OpenAI |
-| `iris_apparently.py` | Unfinished TensorFlow/Keras "DemocraticLLM" transformer sketch (source + temporal embeddings) |
+| `iris_apparently.py` | Experimental TensorFlow/Keras "DemocraticLLM" transformer sketch (source + temporal embeddings) |
+| `openai_legacy.py` | Compatibility shim: legacy `openai.Completion` / `ChatCompletion` API on `openai >= 1.0` |
 | `twitter_archive.py` | Convert a Twitter archive (`data/tweets.js`) to `twitter_archive.csv` |
 | `text_process.py` | Build prompt→completion sentence-pair CSV from a text file (NLTK) |
 | `data/semantic-iris.csv` | Training data: `prompt,completion` pairs |
 | `data/chat-iris.csv` | Training data: `prompt,completion,Source` triples |
+| `scripts/check_markdown_links.py` | CI helper: validates relative links and heading anchors in all markdown |
+| `.github/workflows/ci.yml` | CI: Python syntax, markdown links, openai shim smoke test |
 | `.aii/config.yaml` | InstituteOS sidecar metadata |
 | `LICENSE` | CC BY 4.0 license text |
 
@@ -55,17 +63,20 @@ python parse_fourthought.py /path/to/paper.pdf
 # Convert a Twitter archive export into a CSV (needs data/tweets.js)
 python twitter_archive.py
 
-# Run the hindsight summarization pipeline
-# (expects prophet_thought_dump_ALL_THOUGHTS_2023.csv and twitter_archive.csv)
-python hindsight.py
+# Run the hindsight summarization pipeline (stages are flags; see python hindsight.py --help)
+python hindsight.py --daily        # needs the FourThought dump + twitter_archive.csv
+python hindsight.py --weekly       # needs daily_summaries.csv
+python hindsight.py --monthly      # needs weekly_summaries.csv
+python hindsight.py --all          # full pipeline in order
 
 # Run the Discord bot (requires the environment variables below)
 python discord_bot.py
 ```
 
-`iris_apparently.py` is a non-runnable sketch; see
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#iris_apparentlypy-democraticllm-sketch-not-runnable) for the known
-blockers.
+`iris_apparently.py` imports and its training flow is structurally consistent,
+but it is an unverified sketch: training requires TensorFlow and a CSV with
+`text, source_id, timestamp` columns, none of which is committed. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#iris_apparentlypy-democraticllm-sketch-repaired-unverified).
 
 ## Requirements
 
@@ -73,11 +84,14 @@ Python 3 with the packages used by the individual scripts. A full install for
 every component looks like:
 
 ```bash
-pip install openai<1.0 discord.py pandas tensorflow nltk PyPDF2 selenium beautifulsoup4 tqdm pyairtable python-dateutil
+pip install "openai>=1.0" discord.py pandas tensorflow nltk PyPDF2 selenium beautifulsoup4 tqdm pyairtable python-dateutil
 ```
 
-Scripts read their credentials from environment variables (see
-[.env.example](.env.example) for a template):
+The scripts call the legacy pre-1.0 OpenAI API style; `openai_legacy.py`
+(shipped in this repository) patches that surface onto `openai >= 1.0`, so
+current package versions work without code changes. Scripts read their
+credentials from environment variables (see [.env.example](.env.example) for a
+template):
 
 | Variable | Used by |
 | --- | --- |

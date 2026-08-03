@@ -135,10 +135,24 @@ period summaries and fine-tuning data. Requires `OPENAI_API_KEY`.
   `created_at`, `full_text`, `retweet_count`, `favorite_count` (the `lang`
   column is dropped).
 
-The module-level block loads both sources, tags them `Platform` =
-`fourthought` / `twitter`, concatenates, and sorts by `Post date`. It currently
-executes `construct_monthly_training_data()`; the summarization functions are
-commented out there.
+`load_merged_data(fourthought_path, twitter_path)` loads both sources, tags
+them `Platform` = `fourthought` / `twitter`, concatenates, and sorts by
+`Post date` (the FourThought dump is loaded once, not twice). The pipeline is
+driven by a command-line entry point:
+
+```bash
+python hindsight.py --daily        # write daily_summaries.csv
+python hindsight.py --weekly       # needs daily_summaries.csv
+python hindsight.py --monthly      # needs weekly_summaries.csv
+python hindsight.py --seasonal     # needs monthly_summaries.csv
+python hindsight.py --train-daily  # temporal_iris.csv from daily summaries
+python hindsight.py --train-weekly # weekly_iris.csv from weekly summaries
+python hindsight.py --train-monthly# monthly_iris.csv from monthly summaries
+python hindsight.py --all          # full pipeline in order
+```
+
+Importing the module has no side effects; with no flags, `main()` prints
+usage.
 
 **Summarization functions** (all GPT-4 via `create_summary`, with
 rate-limit retry and caching):
@@ -201,28 +215,48 @@ and pairs each sentence with its successor to produce
 fine-tuning-data construction for "next sentence" generation. The input file
 name is hardcoded.
 
-### `iris_apparently.py` — "DemocraticLLM" sketch (not runnable)
+### `iris_apparently.py` — "DemocraticLLM" sketch (repaired, unverified)
 
 An unfinished TensorFlow/Keras attempt at an Iris architecture: a Transformer
 encoder–decoder (`DemocraticLLM`) whose encoder and decoder layers add extra
-attention blocks over *source embeddings*, plus sinusoidal *temporal
-embeddings* computed from timestamps (seconds→year components). The intended
-training CSV schema is `text, source_id, timestamp`.
+attention blocks over *source embeddings* (one learned embedding per
+contributing source), plus sinusoidal *temporal embeddings* computed from
+timestamps (seconds→year components). The intended training CSV schema is
+`text, source_id, timestamp`, and the training flow lives in `main()`:
 
-It is a **non-runnable sketch**. Known blockers, verified against the source:
+```bash
+python iris_apparently.py path/to/your_csv_file.csv
+```
 
-1. `layers` is referenced (`MultiHeadAttention(layers.Layer)`) but never
-   imported.
-2. Module-level statements call `create_sinusoidal_embeddings(...)` (line 56)
-   and `DemocraticLLM(...)` (line 79) before those names are defined, which
-   raises `NameError` at import time.
-3. The `model.fit(x=[...], ...)` call does not match the required positional
-   arguments of `DemocraticLLM.call(...)`.
-4. `create_source_embeddings` and `create_temporal_embeddings` are defined but
-   never used.
+**Repair (2026-08-02).** The file was previously non-runnable: `layers` was
+never imported, the module-level training block referenced functions and
+classes before definition, and the `model.fit` call did not match
+`DemocraticLLM.call`. The repair:
 
-Fixing these is out of scope for a documentation pass; see
-[TO-DO.md](../TO-DO.md) for the deferred item.
+- added the missing `tensorflow.keras.layers` import;
+- moved the training block into `main()` under an `if __name__ == "__main__"`
+  guard, so importing the module has no side effects;
+- reconciled `DemocraticLLM` with the documented training call: the model
+  unpacks `(token_ids, source_ids, timestamp_ids)` from `fit`'s `x` list,
+  builds padding and look-ahead masks internally, looks up source embeddings
+  and sinusoidal temporal embeddings per row, and returns a single logits
+  tensor for Keras;
+- fixed sub-layer calls to use keyword arguments (Keras only accepts tensors
+  positionally), oriented source/cross attention so the sequence is the query
+  (key/value = source embedding / encoder output), summed the six time
+  components in `create_sinusoidal_embeddings`, and split train/validation on
+  numpy arrays (sklearn cannot index TensorFlow tensors);
+- removed dead helpers (`create_source_embeddings`, `create_temporal_embeddings`)
+  and unused imports.
+
+**Status: structurally repaired and runtime-smoke-tested, but not trained.**
+A TensorFlow 2.x / Python 3.12 run verified: module import, mask shapes, a
+forward pass and one `fit` step on a small model, the no-source fallback
+path, and `main()`'s preprocessing glue (tokenizer, embeddings, splits)
+including a forward pass of the full model configuration. A real training run
+still requires a CSV with `text, source_id, timestamp` columns — no such
+dataset is committed to this repository — and Keras 3 emits benign
+mask-propagation/`build()` warnings for this custom layer stack.
 
 ## Environment variables
 
@@ -236,10 +270,11 @@ A template is provided in [.env.example](../.env.example).
 
 ## Caveats
 
-- All OpenAI calls use the legacy API surface (`openai.Completion`,
-  `openai.ChatCompletion`) from the pre-1.0 `openai` package; the code will
-  not run against `openai >= 1.0` without changes.
+- The scripts call the legacy pre-1.0 OpenAI API style; the in-repo
+  `openai_legacy.py` shim patches that surface onto `openai >= 1.0`, so the
+  scripts import and issue requests against current packages.
 - The fine-tuned model IDs in `discord_bot.py` and `parse_fourthought.py`
-  (`davinci:ft-personal:*`) refer to retired models and are not valid today.
+  (`davinci:ft-personal:*`) refer to retired models and are not valid today;
+  requests using them will fail at call time even with a current package.
 - Discord channel IDs are hardcoded; the bot only behaves as documented when
   run in the original server layout.

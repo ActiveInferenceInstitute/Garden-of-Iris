@@ -90,3 +90,50 @@ Notes on scope discipline:
   migration; O4 `hindsight.py` main-block cleanup; O5 CRLF data endings.
   Each is a code or toolchain change beyond this documentation pass, or
   deliberately left to avoid churn.
+
+---
+
+## Follow-up pass (2026-08-02) — deferred items implemented
+
+On request, all five deferred items were implemented. Commits (chronological):
+
+| Commit | Change |
+| --- | --- |
+| `1219457` | fix: add legacy OpenAI API shim (`openai_legacy.py` + 3 scripts) — O3 |
+| `c7226c2` | refactor: hindsight pipeline as argparse CLI, guard imports — O4 |
+| `513cdab` | fix: repair `iris_apparently.py` (imports, `main()` guard, fit/call reconciliation) — O1 |
+| `11a2550` | ci: GitHub Actions checks (syntax, markdown links, shim smoke test) — O2 |
+| `f18f219` | chore: normalize data CSV line endings to LF via `.gitattributes` — O5 |
+| *(this commit)* | docs: update README/ARCHITECTURE/TO-DO for the follow-up pass |
+
+Verification performed (real runs, no fabricated results):
+
+- **O3 shim** — tested against a fake `openai` module: v1-style patch path
+  (Completion/ChatCompletion callable, `error.RateLimitError` /
+  `error.Timeout` / `error.InvalidRequestError` mapped), idempotency, and the
+  pre-1.0 no-op path. All assertions passed.
+- **O4 hindsight CLI** — imported with stubbed `pandas`/`openai`: module
+  import has no side effects; `main([])` prints usage and returns; `--help`
+  exits 0; unknown flag exits 2; all pipeline stage functions present.
+- **O1 iris_apparently** — repaired, then runtime-tested against real
+  TensorFlow 2.x (uv venv, Python 3.12, `tensorflow` + `pandas` +
+  `scikit-learn`): module import OK; mask shapes OK; tiny-model forward pass
+  OK; one `fit` step OK; no-source/no-temporal fallback OK; `main()`
+  preprocessing glue (tokenizer, sinusoidal embeddings, `pad_sequences`,
+  `train_test_split` on numpy) OK; full model configuration (d_model=512,
+  num_layers=6, vocab=30000) forward pass OK. The runtime test surfaced three
+  real bugs fixed during the pass: Keras sub-layer calls must use keyword
+  arguments; source/cross attention was oriented wrong (query must be the
+  sequence); `create_sinusoidal_embeddings` broadcast a (6, 256) array into a
+  (256,) slice. `train_test_split` on TF tensors was also rejected by sklearn
+  and now runs on numpy arrays.
+- **O2 CI** — `scripts/check_markdown_links.py` run locally: 8 markdown
+  files, all links/anchors OK; workflow YAML validated.
+- **O5 line endings** — index blobs compared to HEAD: byte-identical after
+  stripping `\r` (semantic-iris.csv 1103 CRs, chat-iris.csv 1502 CRs removed);
+  row counts unchanged (1,478 / 2,414).
+
+Not performed (stated honestly): no real OpenAI API calls (no credentials,
+retired model IDs); no full `iris_apparently.py` training run (no
+`text, source_id, timestamp` dataset in the repo); CI has not executed on
+GitHub yet (first run will happen on the next push after this one).
