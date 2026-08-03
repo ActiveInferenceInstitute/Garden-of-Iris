@@ -82,10 +82,12 @@ Each thought also carries two voting dimensions in the FourThought data:
 A Discord bot (`commands.Bot`, prefix `/`) named Iris that acts as an "oracle
 and time compass": it summarizes community threads, answers questions, pulls
 tarot cards, and relays fine-tuned-model responses. Requires
-`DISCORD_BOT_KEY`, `OPENAI_API_KEY`, and `AIRTABLE_API_KEY`.
+`DISCORD_BOT_KEY`, `OPENROUTER_API_KEY` (fallback `OPENAI_API_KEY`), and
+`AIRTABLE_API_KEY`.
 
 **Channel pools.** Three channels are monitored in `on_message`; any new
-non-command message triggers an automatic GPT-4 summary of the recent thread:
+non-command message triggers an automatic summary of the recent thread from
+the default OpenRouter chat model (`openai/gpt-4o-mini`):
 
 | Pool | Channel ID | Behavior |
 | --- | --- | --- |
@@ -97,9 +99,9 @@ Each pool reads up to 50 messages of history, ignores slash commands, builds a
 chat conversation, and sends the response (chunked at 2000 characters).
 
 **DM relay (`frankeniris`).** Private messages are answered by a
-"Frankeniris" relay: a fine-tuned `chat-iris` completion is folded into a
-GPT-3.5-turbo conversation along with recent channel history, truncated to a
-20,000-character budget.
+"Frankeniris" relay: a one-shot response from the `chat-iris` model slot is
+folded into a chat conversation along with recent channel history, truncated
+to a 20,000-character budget.
 
 **Slash commands.**
 
@@ -107,11 +109,11 @@ GPT-3.5-turbo conversation along with recent channel history, truncated to a
 | --- | --- | --- |
 | `/channel` | `/c` | Channels wisdom: feeds a random question from `data/chat-iris.csv` into Frankeniris |
 | `/faq` | — | Answers a random question from `data/chat-iris.csv` with its stored completion |
-| `/infuse` | `/in`, `/inject` | Scrapes a URL (headless Selenium), chunks the text, and summarizes each chunk with GPT-4 into the stream |
-| `/iris` | `/ask` | Queries the fine-tuned `chat-iris` model directly |
-| `/davinci` | — | Queries `text-davinci-002` (tester-gated) |
+| `/infuse` | `/in`, `/inject` | Scrapes a URL (headless Selenium), chunks the text, and summarizes each chunk with the default OpenRouter chat model into the stream |
+| `/iris` | `/ask` | Queries the `chat-iris` model slot directly |
+| `/davinci` | — | Queries the `davinci` model slot (tester-gated) |
 | `/claim` | — | Logs an attestation into `iris_training-data.csv` |
-| `/pullcard` | — | Draws a card from the Iris tarot deck (Airtable, falling back to `tarot_text.csv`); interprets it with `text-davinci-002` when an intention is given |
+| `/pullcard` | — | Draws a card from the Iris tarot deck (Airtable, falling back to `tarot_text.csv`); interprets it with the default OpenRouter chat model when an intention is given |
 | `/ask_group` | — | DMs the "Birdies" role a question, collects answers via modals, and pools them into a consensus |
 
 **Training-data collection.** `load_training_data()` reads
@@ -122,7 +124,8 @@ as new rows.
 ### `hindsight.py` — hindsight summarization pipeline
 
 Turns a personal archive of tagged thoughts (FourThought data + Twitter) into
-period summaries and fine-tuning data. Requires `OPENAI_API_KEY`.
+period summaries and fine-tuning data. Requires `OPENROUTER_API_KEY` (fallback
+`OPENAI_API_KEY`).
 
 **Inputs** (not committed to the repository):
 
@@ -154,8 +157,8 @@ python hindsight.py --all          # full pipeline in order
 Importing the module has no side effects; with no flags, `main()` prints
 usage.
 
-**Summarization functions** (all GPT-4 via `create_summary`, with
-rate-limit retry and caching):
+**Summarization functions** (all via the default OpenRouter chat model
+`openai/gpt-4o-mini` in `create_summary`, with rate-limit retry and caching):
 
 | Function | Output file | Granularity |
 | --- | --- | --- |
@@ -192,12 +195,14 @@ python parse_fourthought.py /path/to/paper.pdf      # PDF (PyPDF2)
 ```
 
 The text is cleaned (newlines to spaces, sentence re-casing), split into
-3000-character chunks, and sent to GPT-3.5-turbo with a system prompt
-describing the FourThought dialectic and the exact output format
+3000-character chunks, and sent to the default OpenRouter chat model with a
+system prompt describing the FourThought dialectic and the exact output format
 `THOUGHT_TEXT, THOUGHT_TYPE`. Matches are printed as thought text and type
-separately. Requires `OPENAI_API_KEY`. The module also defines a `models` dict
-of fine-tuned model IDs (`semantic`, `davinci`, `thought_type`) that are
-referenced by the dialectic prompts but not used in the main flow.
+separately. Requires `OPENROUTER_API_KEY` (fallback `OPENAI_API_KEY`). The
+module also defines a `models` dict mapping the `semantic`, `davinci`, and
+`thought_type` slots to OpenRouter chat models (the original fine-tuned
+davinci IDs are retired); the slots are referenced by the dialectic prompts
+but not used in the main flow.
 
 ### `twitter_archive.py` — Twitter archive converter
 
@@ -262,19 +267,24 @@ mask-propagation/`build()` warnings for this custom layer stack.
 
 | Variable | Required by | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | `discord_bot.py`, `hindsight.py`, `parse_fourthought.py` | OpenAI API access |
+| `OPENROUTER_API_KEY` | `discord_bot.py`, `hindsight.py`, `parse_fourthought.py` | OpenRouter API access (primary) |
+| `OPENAI_API_KEY` | fallback for the above | Used only when `OPENROUTER_API_KEY` is unset |
 | `DISCORD_BOT_KEY` | `discord_bot.py` | Discord bot token |
 | `AIRTABLE_API_KEY` | `discord_bot.py` | Airtable tarot-deck lookup |
 
-A template is provided in [.env.example](../.env.example).
+A template is provided in [.env.example](../.env.example). All model calls are
+routed through OpenRouter (`https://openrouter.ai/api/v1`) by
+`openai_legacy.py`, which also sets OpenRouter attribution headers.
 
 ## Caveats
 
 - The scripts call the legacy pre-1.0 OpenAI API style; the in-repo
-  `openai_legacy.py` shim patches that surface onto `openai >= 1.0`, so the
-  scripts import and issue requests against current packages.
-- The fine-tuned model IDs in `discord_bot.py` and `parse_fourthought.py`
-  (`davinci:ft-personal:*`) refer to retired models and are not valid today;
-  requests using them will fail at call time even with a current package.
+  `openai_legacy.py` shim patches that surface onto `openai >= 1.0` and
+  routes every request through OpenRouter (`https://openrouter.ai/api/v1`),
+  where the legacy completions API is emulated as chat completions.
+- The original fine-tuned `davinci` model IDs are retired; the model slots in
+  `discord_bot.py` and `parse_fourthought.py` now map to catalog-verified
+  OpenRouter chat models (`openai/gpt-4o-mini`, `openai/gpt-4o`), checked by
+  `scripts/check_openrouter_models.py` against the live catalog.
 - Discord channel IDs are hardcoded; the bot only behaves as documented when
   run in the original server layout.

@@ -23,14 +23,14 @@ thoughts into daily/weekly/monthly summaries and fine-tuning data, a CLI that
 parses scraped web text into the four thought types, and an unfinished
 TensorFlow sketch of an Iris model architecture.
 
-> **Status: experimental.** These scripts were developed in 2022–2023 around
-> fine-tuned `davinci` models that no longer exist, and are shared for study
-> and reuse rather than maintained as production software. They originally
-> targeted the legacy pre-1.0 OpenAI package; the in-repo `openai_legacy.py`
-> shim patches the modern `openai >= 1.0` client API back onto the legacy call
-> style, so the scripts import and issue requests against current packages
-> (the retired model IDs will still fail at request time). Per-component
-> notes, including what is runnable today, are in
+> **Status: experimental.** These scripts were developed in 2022–2023 and are
+> shared for study and reuse rather than maintained as production software.
+> They originally targeted the legacy pre-1.0 OpenAI package and fine-tuned
+> `davinci` models that no longer exist. The in-repo `openai_legacy.py` shim
+> patches the legacy call style onto `openai >= 1.0` and routes every request
+> through **OpenRouter** (`https://openrouter.ai/api/v1`); the retired
+> fine-tuned model slots now map to catalog-verified OpenRouter chat models.
+> Per-component notes, including what is runnable today, are in
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Repository layout
@@ -41,12 +41,13 @@ TensorFlow sketch of an Iris model architecture.
 | `hindsight.py` | Summarization pipeline: daily → weekly → monthly summaries, plus training-data construction |
 | `parse_fourthought.py` | CLI: parse a URL or PDF into FourThought thought types via OpenAI |
 | `iris_apparently.py` | Experimental TensorFlow/Keras "DemocraticLLM" transformer sketch (source + temporal embeddings) |
-| `openai_legacy.py` | Compatibility shim: legacy `openai.Completion` / `ChatCompletion` API on `openai >= 1.0` |
+| `openai_legacy.py` | Compatibility shim: legacy `openai.Completion` / `ChatCompletion` calls routed through OpenRouter |
 | `twitter_archive.py` | Convert a Twitter archive (`data/tweets.js`) to `twitter_archive.csv` |
 | `text_process.py` | Build prompt→completion sentence-pair CSV from a text file (NLTK) |
 | `data/semantic-iris.csv` | Training data: `prompt,completion` pairs |
 | `data/chat-iris.csv` | Training data: `prompt,completion,Source` triples |
 | `scripts/check_markdown_links.py` | CI helper: validates relative links and heading anchors in all markdown |
+| `scripts/check_openrouter_models.py` | CI helper: verifies the scripts' model IDs against the live OpenRouter catalog |
 | `.github/workflows/ci.yml` | CI: Python syntax, markdown links, openai shim smoke test |
 | `.aii/config.yaml` | InstituteOS sidecar metadata |
 | `LICENSE` | CC BY 4.0 license text |
@@ -88,14 +89,15 @@ pip install "openai>=1.0" discord.py pandas tensorflow nltk PyPDF2 selenium beau
 ```
 
 The scripts call the legacy pre-1.0 OpenAI API style; `openai_legacy.py`
-(shipped in this repository) patches that surface onto `openai >= 1.0`, so
+(shipped in this repository) patches that surface onto `openai >= 1.0` and
+routes all model calls through OpenRouter (https://openrouter.ai/api/v1), so
 current package versions work without code changes. Scripts read their
 credentials from environment variables (see [.env.example](.env.example) for a
 template):
 
 | Variable | Used by |
 | --- | --- |
-| `OPENAI_API_KEY` | `discord_bot.py`, `hindsight.py`, `parse_fourthought.py` |
+| `OPENROUTER_API_KEY` | `discord_bot.py`, `hindsight.py`, `parse_fourthought.py` (primary; falls back to `OPENAI_API_KEY`) |
 | `DISCORD_BOT_KEY` | `discord_bot.py` |
 | `AIRTABLE_API_KEY` | `discord_bot.py` (tarot deck lookup) |
 

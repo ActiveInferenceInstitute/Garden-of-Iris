@@ -8,7 +8,7 @@ all contributions are published publicly.
 
 - **No secrets.** The repository is public. Never commit API keys, bot
   tokens, or personal archives. The scripts read credentials from environment
-  variables (`OPENAI_API_KEY`, `DISCORD_BOT_KEY`, `AIRTABLE_API_KEY`); see
+  variables (`OPENROUTER_API_KEY`, `DISCORD_BOT_KEY`, `AIRTABLE_API_KEY`); see
   [.env.example](.env.example) for the shape of these variables.
 - **No personal data.** Untracked inputs such as
   `prophet_thought_dump_ALL_THOUGHTS_2023.csv`, `data/tweets.js`, and

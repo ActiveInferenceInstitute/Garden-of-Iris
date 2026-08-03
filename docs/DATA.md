@@ -18,7 +18,9 @@ header). Lines use CRLF endings.
 
 Consumed by `discord_bot.py` indirectly (the `/channel` and `/faq` commands
 read `data/chat-iris.csv`, not this file) and referenced historically by the
-`models` dictionary in `parse_fourthought.py` (`semantic-iris-davinci-3`).
+`models` dictionary in `parse_fourthought.py` (the `semantic` slot, which
+pointed at a `semantic-iris-davinci-3` fine-tune, now maps to an OpenRouter
+chat model).
 
 ### `data/chat-iris.csv`
 
