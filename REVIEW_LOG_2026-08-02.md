@@ -137,3 +137,53 @@ Not performed (stated honestly): no real OpenAI API calls (no credentials,
 retired model IDs); no full `iris_apparently.py` training run (no
 `text, source_id, timestamp` dataset in the repo); CI has not executed on
 GitHub yet (first run will happen on the next push after this one).
+
+---
+
+## Follow-up pass 3 (2026-08-02) — OpenRouter migration
+
+On request, all model calls were migrated from the retired OpenAI fine-tuned
+`davinci` endpoints to OpenRouter (`https://openrouter.ai/api/v1`). Commits:
+
+| Commit | Change |
+| --- | --- |
+| `a46c00e` | fix: migrate model calls to OpenRouter (shim routing, legacy completions emulated as chat, model slots remapped, OpenRouter attribution headers) |
+| `6945d2f` | ci: verify script model IDs against the live OpenRouter catalog (`scripts/check_openrouter_models.py`) |
+| `fcbd13e` | docs: document OpenRouter routing (README, ARCHITECTURE, SECURITY, CONTRIBUTING, DATA, `.env.example`) |
+| `3c3b0e1` | fix: guard `openai_legacy.patch()` against openai >= 1.0 removed-API proxies |
+| *(this commit)* | docs: record OpenRouter migration and CI outcomes in TO-DO/review log |
+
+Grounded facts: `GET https://openrouter.ai/api/v1/models` is public (337
+models at check time); `openai/gpt-4o-mini` and `openai/gpt-4o` verified in
+the live catalog; OpenRouter docs confirm the OpenAI-SDK-compatible base URL,
+`OPENROUTER_API_KEY` auth, and `HTTP-Referer` / `X-OpenRouter-Title`
+attribution headers.
+
+Verification performed (real runs):
+
+- **Shim behavior (stub-based, 7 groups):** client constructed with
+  `base_url=https://openrouter.ai/api/v1`, key from `OPENROUTER_API_KEY` with
+  `OPENAI_API_KEY` fallback, attribution headers set; `Completion.create`
+  translates `prompt` → chat `messages` (prompt arrays joined); responses
+  support both `response['choices'][0]['text']` and
+  `response.choices[0].text`; `ChatCompletion.create` passes through;
+  pre-1.0 no-op path preserved.
+- **Stub imports of all three scripts** with the migrated code: side-effect
+  free (hindsight CLI usage/exit codes), shim patch executes, and no legacy
+  model strings (`davinci:ft*`, `text-davinci*`, `gpt-3.5-turbo`, `"gpt-4"`)
+  remain anywhere in the scripts.
+- **Live OpenRouter catalog check** (`scripts/check_openrouter_models.py`):
+  both model IDs present in the live catalog — exit 0.
+- **GitHub CI (real, authoritative for the real-openai path):** the first two
+  runs (30773591288, 30774785267) FAILED and surfaced a real bug: openai
+  2.52.0 exposes `openai.Completion`/`ChatCompletion` as `APIRemovedInV1Proxy`
+  deprecation shims, defeating the shim's `hasattr()` no-op guard. Fixed in
+  `3c3b0e1` (version-gated guard with proxy-type fallback; five guard cases
+  tested locally). Run `30775146930` on current `master` is **green**: all 8
+  steps pass, including the live catalog check and the shim smoke test
+  against real openai.
+
+Not performed (stated honestly): live model calls still require an
+`OPENROUTER_API_KEY` and the personal-archive inputs, neither of which is
+available here; a full `iris_apparently.py` training run still lacks a
+`text, source_id, timestamp` dataset.

@@ -89,13 +89,42 @@ implemented on request in a follow-up pass. Verification notes for each are in
   cff) plus `git add --renormalize`; index blobs verified byte-identical to
   HEAD after stripping `\r`.
 
+## OpenRouter migration (2026-08-02)
+
+On request, all model calls were migrated from the retired OpenAI fine-tuned
+`davinci` endpoints to **OpenRouter** (`https://openrouter.ai/api/v1`):
+
+- `openai_legacy.py` routes every request through OpenRouter: the client is
+  built with `base_url=https://openrouter.ai/api/v1`, the key comes from
+  `OPENROUTER_API_KEY` (fallback `OPENAI_API_KEY`), and OpenRouter attribution
+  headers (`HTTP-Referer`, `X-OpenRouter-Title`) are set. Legacy
+  `Completion.create(prompt=...)` is emulated as a chat completion (OpenRouter
+  has no `/completions` endpoint), and responses are wrapped so both legacy
+  access styles work (`response.choices[0].text` and
+  `response['choices'][0]['text']`). Commits: `a46c00e`, `3c3b0e1`.
+- The retired fine-tuned `davinci` model slots in `discord_bot.py` and
+  `parse_fourthought.py` now map to catalog-verified OpenRouter chat models
+  (`openai/gpt-4o-mini`, `openai/gpt-4o`); `hindsight.py` uses the same
+  default. `scripts/check_openrouter_models.py` verifies every model ID the
+  scripts use against the live catalog (CI step). Commit: `6945d2f`.
+- Docs (README, ARCHITECTURE, SECURITY, CONTRIBUTING, DATA, docs index) and
+  `.env.example` updated for `OPENROUTER_API_KEY`. Commit: `fcbd13e`.
+- A real bug was found by the first GitHub CI run and fixed (`3c3b0e1`):
+  openai >= 1.0 exposes `openai.Completion` / `openai.ChatCompletion` only as
+  `APIRemovedInV1Proxy` deprecation shims, which defeated the old `hasattr()`
+  no-op guard; the guard is now version-gated with a proxy-type fallback.
+
 ### Still open
 
 - **Full training run of `iris_apparently.py`.** Requires a CSV with `text,
   source_id, timestamp` columns; no such dataset exists in the repository.
 - **Real end-to-end runs of the OpenAI-backed scripts** (`discord_bot.py`,
-  `hindsight.py`, `parse_fourthought.py`). Requires valid API credentials and
-  the personal-archive inputs, which are not committed; only import/CLI-level
-  verification was performed.
-- **CI has not run on GitHub yet.** The workflow was pushed with this pass;
-  the first run will execute on the next push.
+  `hindsight.py`, `parse_fourthought.py`). Request plumbing (client wiring,
+  prompt→messages translation, response shapes, model IDs) is verified, but a
+  live run still requires an `OPENROUTER_API_KEY` and the personal-archive
+  inputs, which are not committed.
+- **CI status: PASSING on GitHub.** Workflow `ci.yml` runs on every push.
+  Runs `30773591288` and `30774785267` failed on the openai 2.x proxy bug
+  (fixed in `3c3b0e1`); run `30775146930` (current `master`) is green — all
+  8 steps, including the live OpenRouter catalog check and the shim smoke
+  test against real `openai`.
