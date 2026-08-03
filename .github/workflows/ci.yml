@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python syntax check
+        run: python -m compileall -q .
+      - name: Markdown link and anchor check
+        run: python scripts/check_markdown_links.py
+      - name: Install openai
+        run: pip install --quiet "openai>=1.0"
+      - name: Legacy API shim smoke test
+        run: python -c "import openai, openai_legacy; openai_legacy.patch(); assert callable(openai.Completion.create); assert callable(openai.ChatCompletion.create); assert issubclass(openai.error.RateLimitError, Exception); assert issubclass(openai.error.Timeout, Exception); print('legacy shim OK')"
