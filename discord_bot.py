@@ -7,9 +7,7 @@ import datetime
 import dateutil
 
 import textwrap
-import openai
-import openai_legacy  # legacy Completion/ChatCompletion shim for openai >= 1.0
-openai_legacy.patch()
+import iris_llm  # OpenRouter model client (current openai SDK surface)
 import discord
 import asyncio
 import aiohttp
@@ -29,7 +27,8 @@ from discord.ui import Button, View, TextInput, Modal
 from discord.ext import commands
 
 discord_key = os.getenv("DISCORD_BOT_KEY")
-# API key is read by openai_legacy.patch() (OPENROUTER_API_KEY, falls back to OPENAI_API_KEY)
+# Model calls go through iris_llm (OpenRouter; OPENROUTER_API_KEY, falling back
+# to OPENAI_API_KEY).
 airtable_key = os.environ["AIRTABLE_API_KEY"]
 
 intents = discord.Intents.default()
@@ -138,33 +137,29 @@ def elaborate(ctx, prompt="prompt"):
 		button.disabled = True
 		await interaction.response.defer()
 
-		response = openai.Completion.create(
+		response_text = iris_llm.complete(
+			e_prompt,
 			model=models["semantic"],
-			prompt=e_prompt,
 			temperature=0.11,
 			max_tokens=222,
 			top_p=1,
 			frequency_penalty=1,
 			presence_penalty=1,
 			stop=["END"]
-		)
-
-		response_text = response.choices[0].text.strip()
+		).strip()
 
 		if len(response_text) == 0:
 
-			response = openai.Completion.create(
+			response_text = iris_llm.complete(
+				e_prompt,
 				model="openai/gpt-4o-mini",
-				prompt=e_prompt,
 				temperature=1,
 				max_tokens=222,
 				top_p=1,
 				frequency_penalty=2,
 				presence_penalty=2,
 				stop=["END"]
-			)
-
-			response_text = response.choices[0].text.strip()
+			).strip()
 
 		response_text = response_text.replace("###", "").strip()
 
@@ -183,18 +178,16 @@ def redo_view(ctx, prompt, question):
 
 		await interaction.response.defer()
 
-		response = openai.Completion.create(
+		response_text = iris_llm.complete(
+			prompt,
 			model="openai/gpt-4o-mini",
-			prompt=prompt,
 			temperature=1,
 			max_tokens=222,
 			top_p=1,
 			frequency_penalty=2,
 			presence_penalty=2,
 			stop=["END"]
-		)
-
-		response_text = response.choices[0].text.strip()
+		).strip()
 		embed = discord.Embed(title = "Consensus", description = f"**Question**\n{question}\n\n**Consensus**\n{response_text}")
 
 		await ctx.send(embed=embed)
@@ -286,17 +279,16 @@ def chunk_text(text, chunk_length=1000):
 
 async def interpretation(ctx, prompt):
 
-    response = openai.Completion.create(
+    text = iris_llm.complete(
+        prompt,
         model=models["semantic"],
-        prompt=prompt,
         temperature=0.8,
         max_tokens=222,
         top_p=1,
         frequency_penalty=2,
         presence_penalty=2,
         stop=["END"]
-    )
-    text = response['choices'][0]['text'].strip()
+    ).strip()
     embed = discord.Embed(title="Interpretation", description=text)
     view, modal = response_view(modal_text="Write your feedback here", modal_label="Feedback", button_label="Send Feedback")
     view.add_item(group_share(thought=text, prompter=ctx.message.author.name))
@@ -308,9 +300,9 @@ def one_shot(message):
 
 	# Get Iris One Shot Answer
 	try:
-		distillation = openai.Completion.create(
+		iris_answer = iris_llm.complete(
+			message.content,
 			model=models["chat-iris"],
-			prompt=message.content,
 			temperature=0.9,
 			max_tokens=222,
 			top_p=1,
@@ -318,8 +310,6 @@ def one_shot(message):
 			presence_penalty=1.5,
 			stop=["END"]
 		)
-
-		iris_answer = distillation['choices'][0]['text']
 		iris_answer = iris_answer.replace("###", "").strip()
 	except Exception as e:
 		print(f"Error: {e}")
@@ -369,12 +359,7 @@ async def question_pool(message):
 	conversation.append({"role": "system", "content": "My primary job is to summarize what people are uncertain about. I will summarize peoples questions and that is it. I will vary my output but keep them focused on what people don't know and keep it 250 words long"})
 	conversation.append({"role": "assistant", "content": "I NEVER answer questions. I summarize questions and communal uncentainty. I ignore anything that doesn't end in a question mark. I will keep my summary very short or about 250 words long"})
 
-	response = openai.ChatCompletion.create(
-		model="openai/gpt-4o-mini", 
-		messages=conversation
-	)
-
-	response = response.choices[0].message.content.strip()
+	response = iris_llm.chat(conversation, model="openai/gpt-4o-mini")
 
 	# Split response into chunks if longer than 2000 characters
 	if len(response) > 2000:
@@ -438,12 +423,7 @@ async def fourthought_pool(message):
 		conversation.append({"role": "system", "content": "Keep your answer short. No longer than 250 words or a medium length paragraph unless specifically requested to do otherwise"})
 		conversation.append({"role": "user", "content": "Please give guidance based on the thread so far. Focus this thread towards a specific future based on their input"})
 
-	response = openai.ChatCompletion.create(
-		model="openai/gpt-4o-mini", 
-		messages=conversation
-	)
-
-	response = response.choices[0].message.content.strip()
+	response = iris_llm.chat(conversation, model="openai/gpt-4o-mini")
 
 	# Split response into chunks if longer than 2000 characters
 	if len(response) > 2000:
@@ -489,13 +469,7 @@ async def prophecy_pool(message):
 	conversation.append({"role": "system", "content": "You have been moderating a running thread of thoughts about the future. Please aid in any tasks related to the arrow of time. If someon asks you to summarize, create a summary of thre thread and explain how the thoughts about the future are connected and give some analysis about these potential futures. If contextually relevant, feel free to share any wisdom or summarization or help relevant to the future. You also suggest predictions and ways to manifest specific futures mentioned by the group"})
 	conversation.append({"role": "assistant", "content": "I will do what I can to help the thread. I will vary my outputs and how I help regarding the future, but I will keep the focus on the future. My output will be under 300 words and I will mention the last thing said"})
 
-	response = openai.ChatCompletion.create(
-		model="openai/gpt-4o-mini",
-		max_tokens=500, 
-		messages=conversation
-	)
-
-	response = response.choices[0].message.content.strip()
+	response = iris_llm.chat(conversation, model="openai/gpt-4o-mini", max_tokens=500)
 
 	# Split response into chunks if longer than 2000 characters
 	if len(response) > 2000:
@@ -521,9 +495,9 @@ async def frankeniris(message, answer=""):
 
 	# Get Iris One Shot Answer First
 	try:
-		distillation = openai.Completion.create(
+		iris_answer = iris_llm.complete(
+			message.content,
 			model=models["chat-iris"],
-			prompt=message.content,
 			temperature=0.69,
 			max_tokens=222,
 			top_p=1,
@@ -531,8 +505,6 @@ async def frankeniris(message, answer=""):
 			presence_penalty=1.5,
 			stop=["END"]
 		)
-
-		iris_answer = distillation['choices'][0]['text']
 		iris_answer = iris_answer.replace("###", "").strip()
 	except Exception as e:
 		print(f"Error: {e}")
@@ -594,14 +566,12 @@ async def frankeniris(message, answer=""):
 	print("total_length after")
 	print(total_length)
 
-	response = openai.ChatCompletion.create(
+	response = iris_llm.chat(
+		conversation,
 		model="openai/gpt-4o-mini",
 		temperature=0.8,
 		max_tokens=500,
-		messages=conversation
 	)
-
-	response = response.choices[0].message.content.strip()
 
 	# Split response into chunks if longer than 2000 characters
 	if len(response) > 2000:
@@ -717,7 +687,7 @@ async def infuse(ctx, *, link):
 
 		# Send each text chunk to OpenAI for processing with progress bar
 		conversation = [{"role": "system", "content": "You are a parser and summarizer that takes in noisy text scraped from the internet or pdfs and summarizes it into a paragraph"}]
-		conversation.append({"role": "user", "content": "The text you are receiving is scraped from the internet using beautiful soup and PyPDF2. That means it may be quite noisy and contain non-standard capitalization. Please summarize the content of this text into a cleanly written paragraph"})
+		conversation.append({"role": "user", "content": "The text you are receiving is scraped from the internet using beautiful soup and pypdf. That means it may be quite noisy and contain non-standard capitalization. Please summarize the content of this text into a cleanly written paragraph"})
 
 		for i, text_chunk in tqdm(enumerate(text_chunks), total=len(text_chunks), unit='chunk'):
 
@@ -729,10 +699,10 @@ async def infuse(ctx, *, link):
 			truncated_convo.append({"role": "assistant", "content": "There is a parser and summarizer that is designed to take in noisy text scraped from the internet or PDFs and summarize it into a clean paragraph. The parser includes a prompt for the user to summarize the content of a specific web link and inject it into a chat stream for further analysis"})
 			truncated_convo += conversation[-3:]
 
-			response = openai.ChatCompletion.create(
+			response = iris_llm.chat_completion(
+				truncated_convo,
 				model="openai/gpt-4o-mini",
 				temperature=0.75,
-				messages=truncated_convo
 			)
 
 			# Extract the claims from the response and add them to the claims array
@@ -759,9 +729,9 @@ async def iris(ctx, *, thought):
 
 	thought_prompt = thought + "\n\n###\n\n"
 
-	response = openai.Completion.create(
+	text = iris_llm.complete(
+		thought_prompt,
 		model=models["chat-iris"],
-		prompt=thought_prompt,
 		temperature=0.69,
 		max_tokens=420,
 		top_p=1,
@@ -769,8 +739,6 @@ async def iris(ctx, *, thought):
 		presence_penalty=1.5,
 		stop=["END"]
 	)
-
-	text = response['choices'][0]['text']
 	text = text.replace("###", "").strip()
 	embed = discord.Embed(title = "", description=f"**Prompt**\n{thought}\n\n**Response**\n{text}")
 
@@ -809,19 +777,18 @@ async def davinci(ctx, *, thought):
 
 	thought_prompt = thought
 
-	response = openai.Completion.create(
+	text = iris_llm.complete(
+		thought_prompt,
 		model="openai/gpt-4o-mini",
-		prompt=thought_prompt,
 		temperature=0.69,
 		max_tokens=222,
 		top_p=1,
 		frequency_penalty=1.8,
 		presence_penalty=1.5,
 		stop=["END"]
-	)
+	).strip()
 
 	view = View()
-	text = response['choices'][0]['text'].strip()
 	embed = discord.Embed(title = "", description=f"**Prompt**\n{thought}\n\n**Response**\n{text}")
 	share_button = group_share(thought=text, prompt=thought_prompt, prompter=ctx.message.author.name)
 	view.add_item(share_button)
@@ -883,18 +850,16 @@ async def pullcard(ctx, *, intention=""):
 		prompt += "First explain what the intention: '" + intention + "' means, then answer how this intention connects to the card. If it's a question the intention is to know the answer. Write a few sentences and mention the intention directly. Do NOT summarize or repeat the card. Be creative in your interpretation. If the intention is one word talk more about the intention in detail"
 		prompt += "\n\n"
 
-		response = openai.Completion.create(
+		text = iris_llm.complete(
+			prompt,
 			model="openai/gpt-4o-mini",
-			prompt=prompt,
 			temperature=0.8,
 			max_tokens=222,
 			top_p=1,
 			frequency_penalty=2,
 			presence_penalty=2,
 			stop=["END"]
-		)
-
-		text = response['choices'][0]['text'].strip()
+		).strip()
 		embed_b = discord.Embed(title = "One Interpretation (beta)", description=text)
 		await ctx.send(embed=embed_b)
 	
@@ -977,17 +942,16 @@ async def ask_group(ctx, *, question=""):
 	response_text = ""
 
 	for prompt in prompts:
-		summarized = openai.Completion.create(
+		response_text += iris_llm.complete(
+			prompt,
 			model="openai/gpt-4o-mini",
-			prompt=prompt,
 			temperature=0.6,
 			max_tokens=222,
 			top_p=1,
 			frequency_penalty=1.5,
 			presence_penalty=1,
 			stop=["END"]
-		)
-		response_text += summarized.choices[0].text.strip() + "\n\n"
+		).strip() + "\n\n"
 	
 	# Send Results to People
 	a_embed = discord.Embed(title = "Responses", description = f"{joined_answers}")

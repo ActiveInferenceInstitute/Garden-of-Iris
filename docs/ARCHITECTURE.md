@@ -77,6 +77,23 @@ Each thought also carries two voting dimensions in the FourThought data:
 
 ## Components
 
+### `iris_llm.py` — OpenRouter model client
+
+Every model call in the repository goes through this module. It builds the
+current OpenAI SDK client (`openai >= 1.0`) with
+`base_url=https://openrouter.ai/api/v1`, resolves the API key from
+`OPENROUTER_API_KEY` (falling back to `OPENAI_API_KEY`), and sets the
+OpenRouter attribution headers (`HTTP-Referer`, `X-OpenRouter-Title`).
+
+| Helper | Use |
+| --- | --- |
+| `chat(messages, model, **params)` | Send a chat conversation; returns the first choice's text |
+| `complete(prompt, model, **params)` | Send one prompt as a single user message; returns the text |
+| `chat_completion(messages, model, **params)` | Raw SDK response, for call sites that read every choice |
+
+`RateLimitError` and `APITimeoutError` are re-exported for retry handling.
+There is no legacy pre-1.0 shim: the scripts use this surface directly.
+
 ### `discord_bot.py` — the Iris Discord bot
 
 A Discord bot (`commands.Bot`, prefix `/`) named Iris that acts as an "oracle
@@ -191,8 +208,13 @@ Command-line tool that parses noisy scraped text into the four thought types:
 
 ```bash
 python parse_fourthought.py http://example.com      # URL (headless Selenium)
-python parse_fourthought.py /path/to/paper.pdf      # PDF (PyPDF2)
+python parse_fourthought.py /path/to/paper.pdf      # PDF (pypdf)
 ```
+
+The module is import-safe (no work happens until `main()`); the URL and PDF
+readers, the text cleaner, the chunker, the model loop, and the
+`THOUGHT_TEXT, THOUGHT_TYPE` line classifier are separate functions so they
+can be tested without a browser, a PDF, or network access.
 
 The text is cleaned (newlines to spaces, sentence re-casing), split into
 3000-character chunks, and sent to the default OpenRouter chat model with a
@@ -209,16 +231,18 @@ but not used in the main flow.
 Reads `data/tweets.js` (a Twitter archive export; the JSON array is located
 between the first `[` and last `]`), extracts
 `id, created_at, full_text, retweet_count, favorite_count, lang`, and writes
-`twitter_archive.csv`. Depends on `pandas`. The `data/tweets.js` input is a
-personal archive and is **not** committed.
+`twitter_archive.csv`. Depends on `pandas`. Import-safe (`main()` does the
+work; paths can be passed as arguments, defaulting to `data/tweets.js` and
+`twitter_archive.csv`). The `data/tweets.js` input is a personal archive and
+is **not** committed.
 
 ### `text_process.py` — sentence-pair builder
 
-Reads a local text file named `ceresonepage`, sentence-tokenizes it with NLTK,
-and pairs each sentence with its successor to produce
-`ceresonepage.csv` with columns `prompt,completion` — a simple
-fine-tuning-data construction for "next sentence" generation. The input file
-name is hardcoded.
+Reads a local text file (default name `ceresonepage`), sentence-tokenizes it
+with NLTK, and pairs each sentence with its successor to produce a CSV with
+columns `prompt,completion` (default output `ceresonepage.csv`) — a simple
+fine-tuning-data construction for "next sentence" generation. Import-safe;
+input and output paths can be passed as arguments.
 
 ### `iris_apparently.py` — "DemocraticLLM" sketch (repaired, unverified)
 
@@ -273,18 +297,27 @@ mask-propagation/`build()` warnings for this custom layer stack.
 | `AIRTABLE_API_KEY` | `discord_bot.py` | Airtable tarot-deck lookup |
 
 A template is provided in [.env.example](../.env.example). All model calls are
-routed through OpenRouter (`https://openrouter.ai/api/v1`) by
-`openai_legacy.py`, which also sets OpenRouter attribution headers.
+routed through OpenRouter (`https://openrouter.ai/api/v1`) by `iris_llm.py`,
+which also sets OpenRouter attribution headers.
+
+## Tests and CI
+
+`tests/` holds the pytest suite (`python -m pytest tests/ -q`); the CI
+workflow `.github/workflows/ci.yml` runs a syntax check, the markdown
+link/anchor checker, the test suite, and the live OpenRouter model-ID check.
+Tests stub the model client, so they need no API key or network access.
 
 ## Caveats
 
-- The scripts call the legacy pre-1.0 OpenAI API style; the in-repo
-  `openai_legacy.py` shim patches that surface onto `openai >= 1.0` and
-  routes every request through OpenRouter (`https://openrouter.ai/api/v1`),
-  where the legacy completions API is emulated as chat completions.
+- Model calls use the current OpenAI SDK surface (`openai >= 1.0`) through
+  `iris_llm.py`; there is no legacy pre-1.0 shim. OpenRouter's chat-completions
+  endpoint is the only endpoint used.
 - The original fine-tuned `davinci` model IDs are retired; the model slots in
-  `discord_bot.py` and `parse_fourthought.py` now map to catalog-verified
+  `discord_bot.py` and `parse_fourthought.py` map to catalog-verified
   OpenRouter chat models (`openai/gpt-4o-mini`, `openai/gpt-4o`), checked by
   `scripts/check_openrouter_models.py` against the live catalog.
 - Discord channel IDs are hardcoded; the bot only behaves as documented when
   run in the original server layout.
+- Garden-of-Iris specifies no Active Inference generative model, so it carries
+  no GNN model file. See the "Related projects" section of the
+  [README](../README.md) for where GNN applies in the fleet.

@@ -1,6 +1,6 @@
 # AII sidecar — InstituteOS metadata. Schema: instituteos.platform.aii_sidecar
 meta:
-  updated: '2026-08-02'
+  updated: '2026-11-01'
 repo:
   name: Garden-of-Iris
   slug: garden-of-iris

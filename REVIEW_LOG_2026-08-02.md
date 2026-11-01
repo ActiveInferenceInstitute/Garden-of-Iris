@@ -187,3 +187,45 @@ Not performed (stated honestly): live model calls still require an
 `OPENROUTER_API_KEY` and the personal-archive inputs, neither of which is
 available here; a full `iris_apparently.py` training run still lacks a
 `text, source_id, timestamp` dataset.
+
+
+---
+
+## Pass 4 (2026-11-01) — current-API and GNN-alignment pass
+
+Fleet context: the Active Inference Institute's public repositories are being
+aligned so that every repository that defines a generative model specifies and
+implements it in Generalized Notation Notation (GNN). Garden-of-Iris defines
+no Active Inference generative model — the FourThought dialectic is a typing
+scheme implemented by an LLM prompt, and `iris_apparently.py` is a neural LM
+sketch — so this pass makes the current-API/test/signposting improvements
+instead of forcing a model file.
+
+Changes:
+
+| Change | Detail |
+| --- | --- |
+| Legacy shim removed | `openai_legacy.py` deleted. `iris_llm.py` is the single home for model calls on the current `openai >= 1.0` SDK surface (OpenRouter base URL, `OPENROUTER_API_KEY` with `OPENAI_API_KEY` fallback, attribution headers, `RateLimitError`/`APITimeoutError` re-exports). |
+| Call sites migrated | `discord_bot.py` (15 call sites), `hindsight.py` (1), `parse_fourthought.py` (1). Prompt-style calls became `iris_llm.complete(...)` (one user message); chat calls became `iris_llm.chat(...)`; the `/infuse` loop that reads every choice uses `iris_llm.chat_completion(...)`. |
+| PDF reader current | `parse_fourthought.py` uses `pypdf` instead of `PyPDF2` (whose `PyPDF2.utils.PdfReadError` path no longer exists). |
+| Import-safe scripts | `parse_fourthought.py`, `twitter_archive.py`, and `text_process.py` expose functions + `main()`; importing them has no side effects, and the data tools accept input/output paths as arguments. |
+| Tests | New `tests/` suite (32 tests): client construction and request shapes against a stubbed SDK, parser cleaning/chunking/classification and the chunk loop, hindsight's summary call and CLI, the data tools, and a guard that the legacy surface does not return. |
+| CI | `.github/workflows/ci.yml` now installs `requirements-dev.txt` and runs the suite alongside the syntax, markdown-link, and live OpenRouter catalog checks. |
+| Manifests | `requirements.txt` (component set) and `requirements-dev.txt` (tests/CI). |
+| Signposting | `README.md` and the new `AGENTS.md` link the GNN repository, its integration/implementation guides, and related fleet repositories. |
+
+Verification performed (real runs, this machine, Python 3.14.9, temp venv):
+
+- `python -m compileall -q .` — OK.
+- `python scripts/check_markdown_links.py` — all markdown links/anchors OK.
+- `python -m pytest tests/ -q` — 32 passed (stubbed model client; no key, no
+  network).
+- `python scripts/check_openrouter_models.py` — both model IDs
+  (`openai/gpt-4o-mini`, `openai/gpt-4o`) present in the live OpenRouter
+  catalog; exit 0.
+
+Not performed (stated honestly): no live model calls (no key, no
+personal-archive inputs); no `iris_apparently.py` training run; the updated
+CI workflow has not executed on GitHub from this branch yet — the next push
+will produce the first run.
+

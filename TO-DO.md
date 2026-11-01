@@ -118,13 +118,56 @@ On request, all model calls were migrated from the retired OpenAI fine-tuned
 
 - **Full training run of `iris_apparently.py`.** Requires a CSV with `text,
   source_id, timestamp` columns; no such dataset exists in the repository.
-- **Real end-to-end runs of the OpenAI-backed scripts** (`discord_bot.py`,
+- **Real end-to-end runs of the OpenRouter-backed scripts** (`discord_bot.py`,
   `hindsight.py`, `parse_fourthought.py`). Request plumbing (client wiring,
-  prompt→messages translation, response shapes, model IDs) is verified, but a
-  live run still requires an `OPENROUTER_API_KEY` and the personal-archive
-  inputs, which are not committed.
+  prompt→messages translation, response shapes, model IDs) is verified by
+  unit tests and the catalog check, but a live run still requires an
+  `OPENROUTER_API_KEY` and the personal-archive inputs, which are not
+  committed.
 - **CI status: PASSING on GitHub.** Workflow `ci.yml` runs on every push.
   Runs `30773591288` and `30774785267` failed on the openai 2.x proxy bug
   (fixed in `3c3b0e1`); run `30775146930` (current `master`) is green — all
   8 steps, including the live OpenRouter catalog check and the shim smoke
   test against real `openai`.
+
+## Current-API and GNN-alignment pass (2026-11-01)
+
+Scope: replace the legacy compatibility shim with the current supported API,
+add a test suite and CI coverage for it, and signpost the fleet's GNN
+specification core. Findings and verification are recorded in
+[REVIEW_LOG_2026-08-02.md](REVIEW_LOG_2026-08-02.md) (pass 4).
+
+- [x] **Legacy shim removed.** `openai_legacy.py` (pre-1.0 API emulation) is
+  deleted; `iris_llm.py` is the single home for model calls on the current
+  `openai >= 1.0` SDK surface, routed through OpenRouter. `discord_bot.py`,
+  `hindsight.py`, and `parse_fourthought.py` call `iris_llm.chat()` /
+  `complete()` / `chat_completion()` directly; retries use the SDK's
+  `RateLimitError` / `APITimeoutError` instead of the removed `openai.error`
+  namespace.
+- [x] **PDF dependency current.** `parse_fourthought.py` reads PDFs with
+  `pypdf` (the maintained successor) instead of `PyPDF2`, whose
+  `PyPDF2.utils.PdfReadError` path no longer exists in current releases.
+- [x] **Import-safe scripts.** `parse_fourthought.py`, `twitter_archive.py`,
+  and `text_process.py` do their work in functions behind `main()`, so
+  importing them has no side effects and the helpers are testable.
+- [x] **Tests and CI.** `tests/` covers the client (stubbed SDK), the parser
+  helpers and model loop, the hindsight summary call and CLI, the data tools,
+  and a guard that no legacy API surface returns. CI installs
+  `requirements-dev.txt`, runs the suite, and keeps the syntax, markdown-link,
+  and live OpenRouter catalog checks.
+- [x] **Dependency manifests.** `requirements.txt` (component set) and
+  `requirements-dev.txt` (tests/CI).
+- [x] **GNN signposting.** `README.md` and the new `AGENTS.md` link the GNN
+  integration and implementation guides and the related fleet repositories
+  (active_inference_language_model, courses, Active_Inference_Ontology).
+  Garden-of-Iris itself specifies no Active Inference generative model
+  (FourThought typing is prompt-driven; the Iris LM is a neural sketch), so no
+  `.gnn.md` file was forced; the README records the condition under which one
+  would be added.
+
+### Open after this pass
+
+- Live model runs still need credentials and personal-archive inputs (as
+  above).
+- `iris_apparently.py` remains untrained.
+

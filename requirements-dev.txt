@@ -1,0 +1,4 @@
+# Dependencies for the CI checks and the test suite (tests/).
+openai>=1.0
+pandas
+pytest

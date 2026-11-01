@@ -24,8 +24,12 @@ all contributions are published publicly.
 
 1. Fork the repository (or work on a branch of `master`).
 2. Make your change, keeping the existing style.
-3. Verify: markdown changes should keep relative links valid; Python changes
-   should at least parse (`python -m py_compile <file>`).
+3. Verify:
+   - `python -m compileall -q .` (syntax),
+   - `python scripts/check_markdown_links.py` (relative links and anchors),
+   - `pip install -r requirements-dev.txt && python -m pytest tests/ -q`
+     (unit tests; they stub the model client, so no API key is needed).
+   Add a test when you change behavior.
 4. Open a pull request against `master` describing what you changed and why.
 
 ## Reviewing documentation
