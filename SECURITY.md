@@ -25,10 +25,10 @@ from environment variables:
   committed files. `.env` is ignored by `.gitignore`.
 - If a secret is accidentally committed, rotate it immediately and rewrite
   the commit history.
-- The scripts call the legacy pre-1.0 OpenAI API style; the in-repo
-  `openai_legacy.py` shim patches that surface onto `openai >= 1.0` and
-  routes requests through OpenRouter. See
-  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#caveats) for notes.
+- Model calls use the current OpenAI SDK surface through `iris_llm.py`, which
+  routes requests through OpenRouter and reads the key from the environment.
+  See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#iris_llmpy-openrouter-model-client)
+  for notes.
 
 ## Data sensitivity
 
