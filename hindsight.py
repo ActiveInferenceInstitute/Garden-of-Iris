@@ -7,11 +7,10 @@ import random
 import pandas as pd
 from datetime import datetime
 from itertools import islice
-import openai
-import openai_legacy  # legacy Completion/ChatCompletion shim routed via OpenRouter
-openai_legacy.patch()
+import iris_llm
 
-# API key is read by openai_legacy.patch() (OPENROUTER_API_KEY, falls back to OPENAI_API_KEY)
+# Model calls go through iris_llm (OpenRouter; OPENROUTER_API_KEY, falling back
+# to OPENAI_API_KEY).
 
 def load_and_preprocess_csv(csv_file):
     # This function loads data from a CSV file and preprocesses it to extract 'Positive' and 'Negative' values.
@@ -42,16 +41,11 @@ def create_summary(conversation):
 
     while True:
         try:
-            response = openai.ChatCompletion.create(
-                model="openai/gpt-4o-mini",
-                messages=conversation
-            )
-            response = response.choices[0].message.content.strip()
-            return response
-        except openai.error.RateLimitError:
+            return iris_llm.chat(conversation, model="openai/gpt-4o-mini")
+        except iris_llm.RateLimitError:
             print("Rate limit error encountered. Retrying in 5 seconds...")
             time.sleep(5)
-        except openai.error.Timeout:
+        except iris_llm.APITimeoutError:
             print("Request timed out. Retrying...")
 
 def split_text_into_chunks(text, max_chunk_size=4000):
