@@ -128,6 +128,9 @@ This repository sits in the Active Inference Institute's public fleet:
   [integration guide](https://github.com/ActiveInferenceInstitute/Generalized_Notation_Notation/blob/main/docs/gnn/integration/framework_integration_guide.md)
   and
   [implementation guide](https://github.com/ActiveInferenceInstitute/Generalized_Notation_Notation/blob/main/docs/gnn/integration/gnn_implementation.md).
+  GNN maintains a
+  [downstream adoption guide](https://github.com/ActiveInferenceInstitute/Generalized_Notation_Notation/blob/main/docs/gnn/integration/downstream_adoption.md)
+  for repositories that consume the notation.
 - [active_inference_language_model](https://github.com/ActiveInferenceInstitute/active_inference_language_model) —
   a discrete language stack whose levels are specified in GNN; the closest
   fleet counterpart to Iris's typed-thought pipeline.
