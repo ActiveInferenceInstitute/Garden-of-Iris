@@ -304,7 +304,8 @@ which also sets OpenRouter attribution headers.
 
 `tests/` holds the pytest suite (`python -m pytest tests/ -q`); the CI
 workflow `.github/workflows/ci.yml` runs a syntax check, the markdown
-link/anchor checker, the test suite, and the live OpenRouter model-ID check.
+link/anchor checker, the test suite, the live OpenRouter model-ID check, and
+the pinned GNN conformance baseline (see `.github/GNN.md`).
 Tests stub the model client, so they need no API key or network access.
 
 ## Caveats
