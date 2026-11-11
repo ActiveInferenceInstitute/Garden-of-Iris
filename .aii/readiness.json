@@ -1,0 +1,11 @@
+{
+  "schema": "aii-readiness/v1",
+  "repo": "ActiveInferenceInstitute/Garden-of-Iris",
+  "tier": "python-library",
+  "standard_version": "1.0.0",
+  "baseline": {
+    "commit": "c465a1da8d536f37b67c47d255058da4502f2c6a",
+    "measured_at": "2026-11-10"
+  },
+  "waivers": []
+}
