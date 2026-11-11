@@ -34,6 +34,15 @@ TensorFlow sketch of an Iris model architecture.
 > Per-component notes, including what is runnable today, are in
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Contents
+
+- [Repository layout](#repository-layout)
+- [Quick start](#quick-start)
+- [Requirements](#requirements)
+- [Documentation](#documentation)
+- [Related projects](#related-projects)
+- [License](#license)
+
 ## Repository layout
 
 | Path | What it is |

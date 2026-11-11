@@ -42,6 +42,7 @@ Institute repositories without touching this project's own content. The schema i
 | --- | --- | --- | --- |
 | `inventory` | `git ls-files` | `.` | List tracked files. |
 | `test` | `python -m pytest tests/ -q` | `.` | Run the Python test suite. |
+| `links` | `python scripts/check_markdown_links.py` | `.` | Check relative markdown links and heading anchors. |
 
 ## Links
 

@@ -64,6 +64,9 @@ tasks:
   inventory:
     cmd: git ls-files
     description: List tracked files.
+  links:
+    cmd: python scripts/check_markdown_links.py
+    description: Check relative markdown links and heading anchors.
   test:
     cmd: python -m pytest tests/ -q
     description: Run the Python test suite.
