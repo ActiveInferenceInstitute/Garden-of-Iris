@@ -131,7 +131,7 @@ Verification performed (real runs, no fabricated results):
   files, all links/anchors OK; workflow YAML validated.
 - **O5 line endings** — index blobs compared to HEAD: byte-identical after
   stripping `\r` (semantic-iris.csv 1103 CRs, chat-iris.csv 1502 CRs removed);
-  row counts unchanged (1,478 / 2,414).
+  row counts unchanged (1,103 / 1,502).
 
 Not performed (stated honestly): no real OpenAI API calls (no credentials,
 retired model IDs); no full `iris_apparently.py` training run (no

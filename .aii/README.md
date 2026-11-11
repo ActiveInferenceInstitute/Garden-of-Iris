@@ -41,6 +41,7 @@ Institute repositories without touching this project's own content. The schema i
 | Task | Command | Working directory | Description |
 | --- | --- | --- | --- |
 | `inventory` | `git ls-files` | `.` | List tracked files. |
+| `test` | `python -m pytest tests/ -q` | `.` | Run the Python test suite. |
 
 ## Links
 

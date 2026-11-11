@@ -8,8 +8,8 @@ code.
 
 ### `data/semantic-iris.csv`
 
-Training data for the "semantic" Iris fine-tune. 1,478 data rows (plus a
-header). Lines use CRLF endings.
+Training data for the "semantic" Iris fine-tune. 1,103 data rows (plus a
+header). Lines use LF endings; some cells contain embedded newlines.
 
 | Column | Description |
 | --- | --- |
@@ -24,7 +24,8 @@ chat model).
 
 ### `data/chat-iris.csv`
 
-Chat training data. 2,414 data rows (plus a header).
+Chat training data. 1,502 data rows (plus a header); some cells contain
+embedded newlines.
 
 | Column | Description |
 | --- | --- |
