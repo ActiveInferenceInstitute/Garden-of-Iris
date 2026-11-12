@@ -77,7 +77,7 @@ Each thought also carries two voting dimensions in the FourThought data:
 
 ## Components
 
-### `iris_llm.py` — OpenRouter model client
+### iris_llm.py — OpenRouter model client
 
 Every model call in the repository goes through this module. It builds the
 current OpenAI SDK client (`openai >= 1.0`) with
@@ -244,7 +244,7 @@ columns `prompt,completion` (default output `ceresonepage.csv`) — a simple
 fine-tuning-data construction for "next sentence" generation. Import-safe;
 input and output paths can be passed as arguments.
 
-### `iris_apparently.py` — "DemocraticLLM" sketch (repaired, unverified)
+### iris_apparently.py — "DemocraticLLM" sketch (repaired, unverified)
 
 An unfinished TensorFlow/Keras attempt at an Iris architecture: a Transformer
 encoder–decoder (`DemocraticLLM`) whose encoder and decoder layers add extra

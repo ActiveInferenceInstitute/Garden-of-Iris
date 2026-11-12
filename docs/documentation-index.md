@@ -25,6 +25,8 @@ A flat index of the long-lived documents in this repository. The
 | [RUN_GUIDE.md](RUN_GUIDE.md) | The gate entry point (`scripts/gate.py`), its arms, the CI jobs, and the GNN pin |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Component-by-component overview, data flow, FourThought dialectic, tests and CI |
 | [DATA.md](DATA.md) | Tracked training data, expected inputs, generated outputs, column schemas |
+| [workflows/publishing.md](workflows/publishing.md) | Publishing member bindings, canonical sources, pinned digests and offline drift checks |
+| [workflows/record-identity.schema.json](workflows/record-identity.schema.json) | Unchanged canonical Publishing record-identity schema |
 | [_generated/GATES.md](_generated/GATES.md) | Generated: arm table, test inventory, measured runtimes (producer `scripts/gate.py report`) |
 
 ## Generated documents

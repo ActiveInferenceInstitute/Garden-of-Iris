@@ -33,7 +33,7 @@ check compares against), then `measure --label after`, then `report`. Re-run
 | Arm | What it checks | Needs |
 | --- | --- | --- |
 | `syntax` | Compiles every module. This is the repository's only lint gate: there is no static linter, formatter, or type checker, so there is no `types` arm. | Python only |
-| `docs` | Relative markdown links and heading anchors, then the generated-number freshness check. | `requirements-dev.txt` |
+| `docs` | Publishing artifact digests and drift selftest, canonical relative links/anchors and docs-index coverage, then generated-number freshness. | `requirements-dev.txt` |
 | `fast` | The offline unit suite (`-m "not network"`). This is the default arm. | `requirements-dev.txt` |
 | `tests` | The whole unit suite. | `requirements-dev.txt` |
 | `models` | The scripts' model IDs exist in the live OpenRouter catalog. | Network |
@@ -79,7 +79,13 @@ unavailable, so local gate runs are the only executable gate; a green local
 
 ## Documentation check
 
-The `docs` arm runs `scripts/check_markdown_links.py`, which validates relative
-links and heading anchors across every markdown file in the repository, then
-`python scripts/gate.py report --check`. The repository has no mkdocs site and
-no markdown-link-check configuration; the script is its own check.
+The `docs` arm runs `scripts/check_markdown_links.py`, a member adapter for the
+digest-pinned [Publishing checks](workflows/publishing.md). It verifies the
+canonical schema and every copied module/pin, exercises the canonical drift
+selftest, and delegates links, anchors and index coverage to the canonical docs
+module. Markdown scope still includes new files and excludes dependency/cache
+directories. The arm then runs `python scripts/gate.py report --check`.
+
+The existing generated timing receipts predate the Publishing migration; their
+unchanged command lines do not measure the added digest and index checks.
+The repository has no mkdocs site or markdown-link-check configuration.
