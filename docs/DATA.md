@@ -6,7 +6,7 @@ code.
 
 ## Tracked data (in the repository)
 
-### `data/semantic-iris.csv`
+### data/semantic-iris.csv
 
 Training data for the "semantic" Iris fine-tune. 1,103 data rows (plus a
 header). Lines use LF endings; some cells contain embedded newlines.
@@ -22,7 +22,7 @@ read `data/chat-iris.csv`, not this file) and referenced historically by the
 pointed at a `semantic-iris-davinci-3` fine-tune, now maps to an OpenRouter
 chat model).
 
-### `data/chat-iris.csv`
+### data/chat-iris.csv
 
 Chat training data. 1,502 data rows (plus a header); some cells contain
 embedded newlines.
@@ -49,7 +49,7 @@ committed. `.gitignore` protects them from accidental commits.
 | `tarot_text.csv` | Fallback tarot deck (used if Airtable is unavailable) | `discord_bot.py` (`/pullcard`) |
 | `ceresonepage` | Plain-text input file | `text_process.py` |
 
-### `prophet_thought_dump_ALL_THOUGHTS_2023.csv` — schema
+### prophet_thought_dump_ALL_THOUGHTS_2023.csv — schema
 
 Columns consumed by `hindsight.py`:
 

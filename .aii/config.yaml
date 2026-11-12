@@ -61,22 +61,30 @@ capabilities:
 - ci
 - citation
 tasks:
-  inventory:
-    cmd: git ls-files
-    description: List tracked files.
-  links:
+  syntax:
+    cmd: python scripts/gate.py syntax
+    description: Compile every Python module.
+  docs:
     cmd: python scripts/gate.py docs
-    description: Check relative markdown links and heading anchors, then the generated facts.
-  test:
+    description: "Check links, index coverage, publishing digests and generated facts. Docs index: docs/documentation-index.md. Manuscript command: none."
+  fast:
+    cmd: python scripts/gate.py fast
+    description: Run the default offline unit suite.
+  tests:
     cmd: python scripts/gate.py tests
     description: Run the whole Python test suite.
-  gate:
-    cmd: python scripts/gate.py
-    description: "Run the default gate arm (fast: the offline unit suite)."
+  models:
+    cmd: python scripts/gate.py models
+    description: Check model IDs against the live OpenRouter catalog (network).
+  gnn:
+    cmd: python scripts/gate.py gnn
+    description: "Run pinned GNN conformance (network, Python 3.12). Pin: .github/gnn-pin.json."
 docs:
 - README.md
 - AGENTS.md
-- docs/INTEGRATION.md
+- .aii/docs/INTEGRATION.md
 - docs/README.md
-- docs/AGENTS.md
+- .aii/AGENTS.md
+- docs/documentation-index.md
+- docs/workflows/publishing.md
 schema: aii-sidecar/v1
