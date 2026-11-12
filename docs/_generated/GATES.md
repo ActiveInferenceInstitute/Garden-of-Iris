@@ -25,11 +25,12 @@ check once with `all` (`syntax docs tests models gnn`).
 | File | Tests |
 | --- | --- |
 | `tests/test_data_tools.py` | 5 |
+| `tests/test_gnn_conformance_gate.py` | 15 |
 | `tests/test_hindsight.py` | 4 |
 | `tests/test_iris_llm.py` | 9 |
 | `tests/test_no_legacy_api.py` | 2 |
 | `tests/test_parse_fourthought.py` | 12 |
-| **total** | **32** |
+| **total** | **47** |
 
 ## Measured runtimes
 
