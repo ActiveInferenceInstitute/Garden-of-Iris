@@ -12,6 +12,30 @@ import pathlib
 import re
 import sys
 
+# Dependency and tooling directories whose vendored markdown (e.g. package
+# READMEs inside a local virtualenv) is not part of the checked tree. Tracked
+# repository markdown is unaffected: no tracked path passes through these
+# directory names.
+SKIP_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".tox",
+    ".venv",
+    ".ipynb_checkpoints",
+    "node_modules",
+    "venv",
+    "env",
+    "__pycache__",
+}
+
+
+def markdown_files(root):
+    for path in root.rglob("*.md"):
+        parts = path.relative_to(root).parts[:-1]
+        if not any(part in SKIP_DIRS for part in parts):
+            yield path
+
 
 def slugify(header):
     # GitHub heading anchors: lowercase, strip punctuation, spaces -> hyphens.
@@ -48,7 +72,7 @@ def iter_links(path):
 def main():
     root = pathlib.Path(__file__).resolve().parent.parent
     problems = []
-    md_files = sorted(root.rglob("*.md"))
+    md_files = sorted(markdown_files(root))
     anchors_cache = {}
 
     for md in md_files:
