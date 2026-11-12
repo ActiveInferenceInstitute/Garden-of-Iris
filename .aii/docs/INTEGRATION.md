@@ -49,10 +49,12 @@
 
 | Task | Command | Working directory | Description |
 | --- | --- | --- | --- |
-| `inventory` | `git ls-files` | `.` | List tracked files. |
-| `gate` | `python scripts/gate.py` | `.` | Run the default gate arm (`fast`: the offline unit suite). |
-| `test` | `python scripts/gate.py tests` | `.` | Run the whole Python test suite. |
-| `links` | `python scripts/gate.py docs` | `.` | Check relative markdown links, heading anchors, and the generated facts. |
+| `syntax` | `python scripts/gate.py syntax` | `.` | Compile every Python module. |
+| `docs` | `python scripts/gate.py docs` | `.` | Check links, index coverage, publishing digests and generated facts. Docs index: docs/documentation-index.md. Manuscript command: none. |
+| `fast` | `python scripts/gate.py fast` | `.` | Run the default offline unit suite. |
+| `tests` | `python scripts/gate.py tests` | `.` | Run the whole Python test suite. |
+| `models` | `python scripts/gate.py models` | `.` | Check model IDs against the live OpenRouter catalog (network). |
+| `gnn` | `python scripts/gate.py gnn` | `.` | Run pinned GNN conformance (network, Python 3.12). Pin: .github/gnn-pin.json. |
 
 ## Validation
 
