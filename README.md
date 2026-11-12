@@ -59,7 +59,7 @@ TensorFlow sketch of an Iris model architecture.
 | `tests/` | Pytest suite for `iris_llm`, the parser, the pipeline helpers, and the data tools |
 | `scripts/check_markdown_links.py` | CI helper: validates relative links and heading anchors in all markdown |
 | `scripts/check_openrouter_models.py` | CI helper: verifies the scripts' model IDs against the live OpenRouter catalog |
-| `.github/workflows/ci.yml` | CI: Python syntax, markdown links, unit tests, model-ID catalog check |
+| `.github/workflows/ci.yml` | CI: Python syntax, markdown links, unit tests, model-ID catalog check, pinned GNN conformance |
 | `.aii/config.yaml` | InstituteOS sidecar metadata |
 | `LICENSE` | CC BY 4.0 license text |
 
