@@ -33,7 +33,8 @@ Numbers that a script can produce live in a generated document, never in prose:
 
 | Document | Producer | Check |
 | --- | --- | --- |
-| [_generated/GATES.md](_generated/GATES.md) | `python scripts/gate.py report` | `python scripts/gate.py report --check` (the `docs` arm) |
+| [_generated/GATES.md](_generated/GATES.md) | `python scripts/gate.py measure --label before` and `--label after` (receipts), then `python scripts/gate.py report` | `python scripts/gate.py report --check` (the `docs` arm) |
+| [_generated/gate-before.json](_generated/gate-before.json), [_generated/gate-after.json](_generated/gate-after.json) | `python scripts/gate.py measure` (one pass per arm) | `python scripts/gate.py report --check` (commands must match the code) |
 
 ## Folder-level guides
 

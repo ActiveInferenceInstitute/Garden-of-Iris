@@ -39,9 +39,11 @@ python scripts/gate.py list     # the arm table with exact commands
 There is no `types` arm: the repository has no static type checker. The `gnn`
 arm installs the parser revision pinned in `.github/gnn-pin.json` and needs
 Python 3.12 (the CI pin); that package declares `requires-python
->=3.11,<3.15`. Measured arm runtimes and the test inventory live in
-[docs/_generated/GATES.md](docs/_generated/GATES.md), which
-`python scripts/gate.py report` regenerates — never hand-edit those numbers.
+>=3.11,<3.15`. Arm wall times, the test inventory, and the before/after
+comparison live in [docs/_generated/GATES.md](docs/_generated/GATES.md);
+`python scripts/gate.py measure --label before|after` writes the timing
+receipts and `python scripts/gate.py report` renders them — never hand-edit
+those numbers.
 See [docs/RUN_GUIDE.md](docs/RUN_GUIDE.md).
 
 The test suite stubs the model client; it needs no API key. A real end-to-end

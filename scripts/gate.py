@@ -10,9 +10,13 @@ Usage:
     python scripts/gate.py <arm> [<arm>...] # any combination, in the given order
     python scripts/gate.py all              # every distinct check, once each
     python scripts/gate.py list             # table of arms and their commands
-    python scripts/gate.py report           # run every arm, refresh
-                                            # docs/_generated/GATES.md
-    python scripts/gate.py report --check   # fail if the generated facts are stale
+    python scripts/gate.py measure --label before|after
+                                            # one run per arm, write a timing
+                                            # receipt under docs/_generated/
+    python scripts/gate.py report           # render docs/_generated/GATES.md
+                                            # from the code and those receipts
+    python scripts/gate.py report --check   # fail if the generated facts are
+                                            # stale, or the receipts drifted
 
 Arms:
 
@@ -29,6 +33,11 @@ Arms:
 
 Every arm exits non-zero on failure. Multiple arms all run; the exit status is
 non-zero if any arm failed.
+
+Refresh order for the generated document: `report` (facts), then
+`measure --label after` (the `docs` arm's freshness check needs the facts to be
+current), then `report` again to render the comparison. `measure --label before`
+records the pre-gate baseline and only needs re-running if that baseline changes.
 """
 
 from __future__ import annotations
@@ -37,6 +46,7 @@ import argparse
 import dataclasses
 import datetime
 import importlib.metadata
+import json
 import platform
 import subprocess
 import sys
@@ -44,12 +54,16 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-GENERATED_DOC = ROOT / "docs" / "_generated" / "GATES.md"
+GENERATED_DIR = ROOT / "docs" / "_generated"
+GENERATED_DOC = GENERATED_DIR / "GATES.md"
+RECEIPT_SCHEMA = "gate-receipt/v1"
+RECEIPTS = {
+    "before": GENERATED_DIR / "gate-before.json",
+    "after": GENERATED_DIR / "gate-after.json",
+}
 NETWORK_MARKER = "network"
 PYTHON = "python"  # placeholder shown in docs, replaced by sys.executable
 MEASUREMENT_HEADING = "## Measured runtimes"
-# `report` is the producer of the generated document, so it cannot also require
-# that document to be current; it skips exactly this step.
 GENERATED_CHECK_STEP = (PYTHON, "scripts/gate.py", "report", "--check")
 
 
@@ -86,11 +100,43 @@ ARMS: dict[str, Arm] = {
     ),
 }
 
+# The pre-gate commands, as `.github/workflows/ci.yml` ran them at a2ad766.
+# `fast` did not exist; `docs` was the link check alone. The `gnn` pair
+# reproduces that job's two workflow steps — install the pinned parser, then
+# verify it — against the implementation extracted from those heredocs, so the
+# comparison measures the wrapper change, not different parsing work.
+BASELINE_ARMS: dict[str, Arm] = {
+    "syntax": Arm(
+        "Compile every module.",
+        ((PYTHON, "-m", "compileall", "-q", "."),),
+    ),
+    "docs": Arm(
+        "Relative markdown links and heading anchors.",
+        ((PYTHON, "scripts/check_markdown_links.py"),),
+    ),
+    "tests": Arm(
+        "Whole unit suite.",
+        ((PYTHON, "-m", "pytest", "tests", "-q"),),
+    ),
+    "models": Arm(
+        "Model IDs exist in the live OpenRouter catalog (network).",
+        ((PYTHON, "scripts/check_openrouter_models.py"),),
+    ),
+    "gnn": Arm(
+        "Install the pinned parser (workflow step 1), then verify it (step 2).",
+        (
+            (PYTHON, "scripts/check_gnn_conformance.py", "--no-verify"),
+            (PYTHON, "scripts/check_gnn_conformance.py", "--no-install"),
+        ),
+    ),
+}
+
 # `all` runs each distinct check once: `fast` is omitted because it is the
 # offline subset of `tests`, which covers it.
 ALL_ARMS = ("syntax", "docs", "tests", "models", "gnn")
-# `report` times every arm, including the default `fast` arm that `all` omits.
+# `measure` times every arm, including the default `fast` arm that `all` omits.
 MEASURED_ARMS = ("syntax", "docs", "fast", "tests", "models", "gnn")
+BASELINE_ORDER = tuple(BASELINE_ARMS)
 DEFAULT_ARM = "fast"
 
 
@@ -108,15 +154,12 @@ def run_step(step: tuple[str, ...]) -> int:
     return subprocess.run(argv, cwd=ROOT, stdin=subprocess.DEVNULL).returncode
 
 
-def run_arm(name: str, generated_check: bool = True) -> tuple[bool, float]:
-    arm = ARMS[name]
+def run_arm(name: str, arms: dict[str, Arm]) -> tuple[bool, float]:
+    arm = arms[name]
     print(f"\n== {name}: {arm.summary}", flush=True)
     started = time.monotonic()
     failed = False
     for step in arm.steps:
-        if not generated_check and step == GENERATED_CHECK_STEP:
-            print(f"$ {display(step)} (skipped: report is producing that document)", flush=True)
-            continue
         if run_step(step) != 0:
             failed = True
             break
@@ -192,56 +235,158 @@ def render_facts(counts: dict[str, int]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_measurements(results: list[tuple[str, bool, float]]) -> str:
-    recorded = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+def receipt_body(label: str, arms: dict[str, Arm], order: tuple[str, ...]) -> dict:
+    results = []
+    for name in order:
+        ok, elapsed = run_arm(name, arms)
+        results.append(
+            {
+                "arm": name,
+                "commands": [display(step) for step in arms[name].steps],
+                "wall_s": round(elapsed, 3),
+                "ok": ok,
+            }
+        )
+    return {
+        "schema": RECEIPT_SCHEMA,
+        "label": label,
+        "recorded": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "environment": {
+            "host": f"{platform.platform()} ({platform.machine()})",
+            "python": platform.python_version(),
+            "versions": {name: version(name) for name in ("pytest", "openai", "pandas")},
+        },
+        "arms": results,
+    }
+
+
+def measure(label: str, out: str | None) -> int:
+    arms, order = (
+        (BASELINE_ARMS, BASELINE_ORDER) if label == "before" else (ARMS, MEASURED_ARMS)
+    )
+    receipt = receipt_body(label, arms, order)
+    path = Path(out) if out else RECEIPTS[label]
+    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(receipt, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    failures = [row["arm"] for row in receipt["arms"] if not row["ok"]]
+    print(f"\nmeasure: wrote {path} ({label} run, one pass per arm)")
+    if failures:
+        print(f"measure: FAILED arms: {', '.join(failures)}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def load_receipt(label: str) -> dict | None:
+    path = RECEIPTS[label]
+    if not path.exists():
+        return None
+    receipt = json.loads(path.read_text(encoding="utf-8"))
+    if receipt.get("schema") != RECEIPT_SCHEMA or receipt.get("label") != label:
+        raise SystemExit(f"{path}: expected schema {RECEIPT_SCHEMA!r} and label {label!r}")
+    return receipt
+
+
+def receipt_drift(label: str, receipt: dict, arms: dict[str, Arm], order: tuple[str, ...]) -> str | None:
+    """Name the first difference between a receipt and the code, or None."""
+    recorded = [row.get("arm") for row in receipt.get("arms", [])]
+    if recorded != list(order):
+        return f"{label} receipt covers {recorded}, the code defines {list(order)}"
+    for row in receipt["arms"]:
+        expected = [display(step) for step in arms[row["arm"]].steps]
+        if row.get("commands") != expected:
+            return f"{label} receipt recorded {row['arm']} as {row.get('commands')}, the code runs {expected}"
+        if not isinstance(row.get("wall_s"), (int, float)):
+            return f"{label} receipt has no wall time for {row['arm']}"
+    return None
+
+
+def render_measurements(before: dict | None, after: dict | None) -> str:
     lines = [
         MEASUREMENT_HEADING,
         "",
-        "One run per arm on the host below, immediately after `python scripts/gate.py report`.",
-        "The virtualenv was prepared: `requirements-dev.txt` installed and the `gnn` arm's",
-        "pinned parser present from an earlier run, so a `gnn` timing here does not include a",
-        "cold clone. These are a record of that run, not a freshness claim and not a CI",
-        "claim; re-run `report` to refresh them.",
+        "Two committed receipts: `docs/_generated/gate-before.json` is the pre-gate",
+        "baseline (`measure --label before`: the commands `.github/workflows/ci.yml` ran at",
+        "a2ad766) and `docs/_generated/gate-after.json` is the gate arms (`measure --label",
+        "after`).",
+        "Each receipt is one pass per arm and covers every command that side ran: the",
+        "baseline `docs` entry is the link check alone, while the gate `docs` arm also runs",
+        "the generated-facts check. `report` renders the receipts; it times nothing itself.",
         "",
-        "The table lists every arm, including `fast`, which `all` omits because `tests`",
-        "covers it. `report` skips the `docs` arm's freshness step: it is rewriting that",
-        "document in this run.",
+        "These are measurements on one host in one prepared virtualenv, not a CI claim and",
+        "not a freshness claim. Re-measure after changing an arm, then re-run `report`.",
         "",
-        f"- Recorded: {recorded}",
-        f"- Host: {platform.platform()} ({platform.machine()})",
-        f"- Python: {platform.python_version()}",
-        f"- pytest: {version('pytest')}",
-        f"- openai: {version('openai')}",
-        f"- pandas: {version('pandas')}",
-        "",
-        "| Arm | Result | Wall time |",
-        "| --- | --- | --- |",
     ]
-    for name, ok, elapsed in results:
-        lines.append(f"| `{name}` | {'ok' if ok else 'FAIL'} | {elapsed:.2f}s |")
-    if not results:
-        lines.extend(["", "The measurement run did not finish; re-run `python scripts/gate.py report`."])
+    if before is None or after is None:
+        lines.append("A receipt is missing, so there is no comparison yet: run")
+        lines.append("`python scripts/gate.py measure --label before` (and `after`), then `report`.")
+        return "\n".join(lines) + "\n"
+
+    environment = after["environment"]
+    lines.extend(
+        [
+            f"- Before receipt: {before['recorded']}",
+            f"- After receipt: {after['recorded']}",
+            f"- Host: {environment['host']}",
+            f"- Python: {environment['python']}",
+            "- Versions: "
+            + ", ".join(f"{name} {value}" for name, value in environment["versions"].items()),
+            "",
+            "| Arm | Before | After | Δ |",
+            "| --- | --- | --- | --- |",
+        ]
+    )
+    before_by_arm = {row["arm"]: row for row in before["arms"]}
+    for row in after["arms"]:
+        name = row["arm"]
+        earlier = before_by_arm.get(name)
+        if earlier is None:
+            before_text, delta = "— (arm did not exist)", "—"
+        elif earlier["commands"] == row["commands"]:
+            before_text, delta = f"{earlier['wall_s']:.2f}s", "same command: variance"
+        else:
+            before_text = f"{earlier['wall_s']:.2f}s"
+            delta = f"{row['wall_s'] - earlier['wall_s']:+.2f}s"
+        result = "" if row["ok"] else " (FAIL)"
+        lines.append(f"| `{name}` | {before_text} | {row['wall_s']:.2f}s{result} | {delta} |")
+
+    lines.extend(
+        [
+            "",
+            "Δ appears only where the command changed. Where both sides ran the identical",
+            "command the column says `same command: variance`, because one pass per side cannot",
+            "separate a real difference from warm-cache noise. `docs` gained the generated-facts",
+            "check and `gnn` collapsed two workflow steps into one arm; those Δ values describe",
+            "changed work, not a speed change. No speedup is claimed.",
+            "",
+            "### Baseline commands",
+            "",
+            "| Arm | Commands as recorded |",
+            "| --- | --- |",
+        ]
+    )
+    for row in before["arms"]:
+        commands = "<br>".join(f"`{command}`" for command in row["commands"])
+        lines.append(f"| `{row['arm']}` | {commands} |")
     return "\n".join(lines) + "\n"
 
 
 def write_report() -> int:
+    before = load_receipt("before")
+    after = load_receipt("after")
+    for label, receipt, arms, order in (
+        ("before", before, BASELINE_ARMS, BASELINE_ORDER),
+        ("after", after, ARMS, MEASURED_ARMS),
+    ):
+        if receipt is None:
+            continue
+        problem = receipt_drift(label, receipt, arms, order)
+        if problem:
+            print(f"report: {problem}; re-run `measure --label {label}`", file=sys.stderr)
+            return 1
     facts = render_facts(collect_tests())
-    GENERATED_DOC.parent.mkdir(parents=True, exist_ok=True)
-    # The facts land first so the documents that link here resolve during this
-    # same run; the measurement section is filled in when the arms finish.
-    GENERATED_DOC.write_text(facts + "\n" + render_measurements([]), encoding="utf-8")
-
-    results: list[tuple[str, bool, float]] = []
-    for name in MEASURED_ARMS:
-        ok, elapsed = run_arm(name, generated_check=False)
-        results.append((name, ok, elapsed))
-    GENERATED_DOC.write_text(facts + "\n" + render_measurements(results), encoding="utf-8")
-    print(f"\nreport: wrote {GENERATED_DOC.relative_to(ROOT)}")
-
-    failures = [name for name, ok, _ in results if not ok]
-    if failures:
-        print(f"report: FAILED arms: {', '.join(failures)}", file=sys.stderr)
-        return 1
+    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    GENERATED_DOC.write_text(facts + "\n" + render_measurements(before, after), encoding="utf-8")
+    print(f"report: wrote {GENERATED_DOC.relative_to(ROOT)}")
     return 0
 
 
@@ -261,7 +406,15 @@ def check_report() -> int:
             file=sys.stderr,
         )
         return 1
-    print(f"{GENERATED_DOC.relative_to(ROOT)}: arms and test inventory match the code")
+    for label, arms, order in (("before", BASELINE_ARMS, BASELINE_ORDER), ("after", ARMS, MEASURED_ARMS)):
+        receipt = load_receipt(label)
+        if receipt is None:
+            continue
+        problem = receipt_drift(label, receipt, arms, order)
+        if problem:
+            print(f"ERROR: {problem}; run `python scripts/gate.py measure --label {label}`", file=sys.stderr)
+            return 1
+    print(f"{GENERATED_DOC.relative_to(ROOT)}: arms, test inventory, and receipts match the code")
     return 0
 
 
@@ -277,9 +430,22 @@ def list_arms() -> int:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="gate.py", description=__doc__.splitlines()[0])
-    parser.add_argument("arms", nargs="*", help=f"{', '.join(ARMS)}, all (default: {DEFAULT_ARM})")
-    parser.add_argument("--check", action="store_true", help="with `report`: verify the generated facts are current")
+    parser.add_argument("arms", nargs="*", help=f"{', '.join(ARMS)}, all, list, measure, report (default: {DEFAULT_ARM})")
+    parser.add_argument("--check", action="store_true", help="with `report`: verify the generated facts and receipts")
+    parser.add_argument("--label", choices=tuple(RECEIPTS), help="with `measure`: which side to time")
+    parser.add_argument("--out", help="with `measure`: receipt path (default: docs/_generated/gate-<label>.json)")
     args = parser.parse_args(argv)
+
+    if "measure" in args.arms:
+        if args.arms != ["measure"]:
+            parser.error("`measure` runs alone")
+        if args.label is None:
+            parser.error("`measure` needs --label before|after")
+        if args.check:
+            parser.error("--check is only valid with `report`")
+        return measure(args.label, args.out)
+    if args.label or args.out:
+        parser.error("--label and --out are only valid with `measure`")
 
     if not args.arms:
         if args.check:
@@ -302,7 +468,7 @@ def main(argv: list[str]) -> int:
     if args.check:
         parser.error("--check is only valid with `report`")
 
-    failures = [name for name in names if not run_arm(name)[0]]
+    failures = [name for name in names if not run_arm(name, ARMS)[0]]
     if failures:
         print(f"\nFAILED arms: {', '.join(failures)}", file=sys.stderr)
         return 1
