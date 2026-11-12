@@ -11,6 +11,7 @@ repo:
   default_branch: master
 institute:
   category: research
+  maturity: wip
   steward: Active Inference Institute
 ecosystem:
   relations:
@@ -18,6 +19,7 @@ ecosystem:
     relation: referenced-by
     note: Federated via the InstituteOS .aii manifest.
   - repo: ActiveInferenceInstitute/Generalized_Notation_Notation
+    relation: references
     note: Uses Generalized Notation Notation (GNN) for model specifications.
   links:
     github: https://github.com/ActiveInferenceInstitute/Garden-of-Iris
@@ -83,6 +85,7 @@ docs:
 - AGENTS.md
 - docs/INTEGRATION.md
 - docs/README.md
+- AGENTS.md
 - ../docs/documentation-index.md
 - ../docs/workflows/publishing.md
 - docs/AGENTS.md
