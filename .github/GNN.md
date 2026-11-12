@@ -17,8 +17,11 @@ What it parses: every `*.gnn.md` sketch under the repository root, excluding
 pinned `GNNTypeChecker`. When the repository has no sketch yet, the baseline is
 the pinned upstream `input/gnn_files/basics/static_perception.md` exemplar,
 parsed and type-checked the same way; the check prints a JSON summary naming
-`"source": "pinned-exemplar"`. This is a pipeline and pin conformance baseline,
-not a claim that the repository already contains a model.
+`"source": "pinned-exemplar"`. The type check accepts only the pinned
+`GNNTypeChecker`'s literal `True`: `2` (completed with warnings — invalid
+files, or no files found) and `False` (a hard failure) both stop the arm, and
+the refusal names the value the checker returned. This is a pipeline and pin
+conformance baseline, not a claim that the repository already contains a model.
 
 The pinned package declares `requires-python >=3.11,<3.15`, so run the arm on
 Python 3.12 (the CI pin). Details and measured runtimes:

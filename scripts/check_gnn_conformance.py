@@ -84,6 +84,19 @@ def repository_sketches() -> list[Path]:
     return sorted(sketches)
 
 
+def require_type_check(returned: object, subject: str) -> None:
+    """Fail unless the pinned checker returned its literal success value.
+
+    ``validate_gnn_files`` returns ``True`` when every file validates, ``2``
+    when the run completed but files had type/consistency problems **or when no
+    GNN files were found**, and ``False`` on a hard failure. Truthiness would
+    let ``2`` pass and print ``"verified"``, so only ``is True`` is accepted,
+    and the refusal names the value that came back.
+    """
+    if returned is not True:
+        raise SystemExit(f"GNN type checker rejected {subject} (returned {returned!r})")
+
+
 def verify(pin: dict) -> dict:
     from gnn import __version__
     from gnn.parsers.basic import parse_gnn_formal, validate_gnn_syntax
@@ -107,8 +120,10 @@ def verify(pin: dict) -> dict:
             model_dir.mkdir()
             for index, sketch in enumerate(sketches):
                 shutil.copy2(sketch, model_dir / f"{index:03d}_{sketch.name}")
-            if not GNNTypeChecker().validate_gnn_files(model_dir, Path(output_dir)):
-                raise SystemExit("GNN type checker rejected the repository sketches")
+            require_type_check(
+                GNNTypeChecker().validate_gnn_files(model_dir, Path(output_dir)),
+                "the repository sketches",
+            )
         checked = len(sketches)
         source = "repository"
     else:
@@ -125,8 +140,10 @@ def verify(pin: dict) -> dict:
             model_dir = Path(output_dir) / "models"
             model_dir.mkdir()
             shutil.copy2(exemplar, model_dir / exemplar.name)
-            if not GNNTypeChecker().validate_gnn_files(model_dir, Path(output_dir)):
-                raise SystemExit("GNN type checker rejected the pinned exemplar")
+            require_type_check(
+                GNNTypeChecker().validate_gnn_files(model_dir, Path(output_dir)),
+                "the pinned exemplar",
+            )
         checked = 1
         source = "pinned-exemplar"
 
