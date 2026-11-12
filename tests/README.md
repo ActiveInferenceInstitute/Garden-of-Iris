@@ -19,10 +19,14 @@ check under `scripts/` touches the network, and it is not part of this suite.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest tests/ -q
+python scripts/gate.py fast    # this suite, offline: `-m "not network"`
+python scripts/gate.py tests   # the whole suite
 ```
 
-CI (`.github/workflows/ci.yml`) runs `python -m compileall -q .`, the markdown
-link checker, this suite, and the live OpenRouter model-ID check. The
+`pytest.ini` declares the `network` marker; no test carries it today, so `fast`
+and `tests` collect the same 32 tests. CI (`.github/workflows/ci.yml`) runs the
+`tests` arm of `scripts/gate.py` — not both — alongside the `syntax`, `docs`,
+and `models` arms, and the `gnn-conformance` job runs the `gnn` arm. The
 documentation for the components these tests exercise is in
-[`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
+[`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md), and the arm table plus
+measured numbers are in [`../docs/_generated/GATES.md`](../docs/_generated/GATES.md).

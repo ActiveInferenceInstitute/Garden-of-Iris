@@ -41,8 +41,13 @@ Institute repositories without touching this project's own content. The schema i
 | Task | Command | Working directory | Description |
 | --- | --- | --- | --- |
 | `inventory` | `git ls-files` | `.` | List tracked files. |
-| `test` | `python -m pytest tests/ -q` | `.` | Run the Python test suite. |
-| `links` | `python scripts/check_markdown_links.py` | `.` | Check relative markdown links and heading anchors. |
+| `gate` | `python scripts/gate.py` | `.` | Run the default gate arm (`fast`: the offline unit suite). |
+| `test` | `python scripts/gate.py tests` | `.` | Run the whole Python test suite. |
+| `links` | `python scripts/gate.py docs` | `.` | Check relative markdown links, heading anchors, and the generated facts. |
+
+The `gate` tasks call the repository's single gate entry point
+([`../docs/RUN_GUIDE.md`](../docs/RUN_GUIDE.md)) rather than re-spelling the
+commands CI runs.
 
 ## Links
 

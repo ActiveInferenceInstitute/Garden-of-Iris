@@ -50,8 +50,9 @@
 | Task | Command | Working directory | Description |
 | --- | --- | --- | --- |
 | `inventory` | `git ls-files` | `.` | List tracked files. |
-| `test` | `python -m pytest tests/ -q` | `.` | Run the Python test suite. |
-| `links` | `python scripts/check_markdown_links.py` | `.` | Check relative markdown links and heading anchors. |
+| `gate` | `python scripts/gate.py` | `.` | Run the default gate arm (`fast`: the offline unit suite). |
+| `test` | `python scripts/gate.py tests` | `.` | Run the whole Python test suite. |
+| `links` | `python scripts/gate.py docs` | `.` | Check relative markdown links, heading anchors, and the generated facts. |
 
 ## Validation
 

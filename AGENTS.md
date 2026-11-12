@@ -25,13 +25,24 @@ Institute; published under CC BY 4.0. See [README.md](README.md) and
 
 ## Gates (run before publishing)
 
+One entry point, `scripts/gate.py`; `.github/workflows/ci.yml` runs these same
+arms, so a local run is the gate. Arms: `syntax`, `docs`, `fast`, `tests`,
+`models`, `gnn`.
+
 ```bash
-python -m compileall -q .
-python scripts/check_markdown_links.py
 pip install -r requirements-dev.txt
-python -m pytest tests/ -q
-python scripts/check_openrouter_models.py   # network: live OpenRouter catalog
+python scripts/gate.py          # default arm: fast (offline unit suite)
+python scripts/gate.py all      # syntax, docs, tests, models (network), gnn
+python scripts/gate.py list     # the arm table with exact commands
 ```
+
+There is no `types` arm: the repository has no static type checker. The `gnn`
+arm installs the parser revision pinned in `.github/gnn-pin.json` and needs
+Python 3.12 (the CI pin); that package declares `requires-python
+>=3.11,<3.15`. Measured arm runtimes and the test inventory live in
+[docs/_generated/GATES.md](docs/_generated/GATES.md), which
+`python scripts/gate.py report` regenerates — never hand-edit those numbers.
+See [docs/RUN_GUIDE.md](docs/RUN_GUIDE.md).
 
 The test suite stubs the model client; it needs no API key. A real end-to-end
 run of `discord_bot.py`, `hindsight.py`, or `parse_fourthought.py` requires
