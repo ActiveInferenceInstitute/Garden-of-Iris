@@ -1,7 +1,7 @@
 # AII sidecar — InstituteOS metadata. Schema: aii_platform.aii_sidecar
 meta:
   sidecar_version: 1.2.1
-  updated: '2026-11-11'
+  updated: '2026-11-12'
 repo:
   name: Garden-of-Iris
   slug: garden-of-iris
@@ -65,11 +65,14 @@ tasks:
     cmd: git ls-files
     description: List tracked files.
   links:
-    cmd: python scripts/check_markdown_links.py
-    description: Check relative markdown links and heading anchors.
+    cmd: python scripts/gate.py docs
+    description: Check relative markdown links and heading anchors, then the generated facts.
   test:
-    cmd: python -m pytest tests/ -q
-    description: Run the Python test suite.
+    cmd: python scripts/gate.py tests
+    description: Run the whole Python test suite.
+  gate:
+    cmd: python scripts/gate.py
+    description: "Run the default gate arm (fast: the offline unit suite)."
 docs:
 - README.md
 - AGENTS.md

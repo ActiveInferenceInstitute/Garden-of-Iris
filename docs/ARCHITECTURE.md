@@ -302,11 +302,15 @@ which also sets OpenRouter attribution headers.
 
 ## Tests and CI
 
-`tests/` holds the pytest suite (`python -m pytest tests/ -q`); the CI
-workflow `.github/workflows/ci.yml` runs a syntax check, the markdown
-link/anchor checker, the test suite, the live OpenRouter model-ID check, and
-the pinned GNN conformance baseline (see `.github/GNN.md`).
+`tests/` holds the pytest suite (`python scripts/gate.py tests`). The gate
+entry point is `scripts/gate.py`; each arm is one command shared with
+`.github/workflows/ci.yml`: `syntax`, `docs`, `fast`, `tests`, `models`, and
+`gnn`. The `checks` job runs `syntax`, `docs`, `tests`, and `models`; the
+`gnn conformance (pinned)` job runs `gnn`, which installs the parser revision
+pinned in `.github/gnn-pin.json` and follows `.github/GNN.md`.
 Tests stub the model client, so they need no API key or network access.
+Arm runtimes and the test inventory are recorded in
+[`_generated/GATES.md`](_generated/GATES.md); see [RUN_GUIDE.md](RUN_GUIDE.md).
 
 ## Caveats
 

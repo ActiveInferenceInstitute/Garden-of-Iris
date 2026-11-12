@@ -24,11 +24,15 @@ all contributions are published publicly.
 
 1. Fork the repository (or work on a branch of `master`).
 2. Make your change, keeping the existing style.
-3. Verify:
-   - `python -m compileall -q .` (syntax),
-   - `python scripts/check_markdown_links.py` (relative links and anchors),
-   - `pip install -r requirements-dev.txt && python -m pytest tests/ -q`
-     (unit tests; they stub the model client, so no API key is needed).
+3. Verify with the repository gate (one entry point, the same arms CI runs):
+   - `pip install -r requirements-dev.txt`,
+   - `python scripts/gate.py` — the `fast` arm: the offline unit suite, which
+     stubs the model client, so no API key is needed,
+   - `python scripts/gate.py docs` — relative links and anchors plus the
+     generated-number check,
+   - `python scripts/gate.py syntax` — the compile check,
+   - `python scripts/gate.py all` before proposing a merge; `models` needs
+     network, `gnn` needs Python 3.12 (see [docs/RUN_GUIDE.md](docs/RUN_GUIDE.md)).
    Add a test when you change behavior.
 4. Open a pull request against `master` describing what you changed and why.
 

@@ -57,9 +57,11 @@ TensorFlow sketch of an Iris model architecture.
 | `data/semantic-iris.csv` | Training data: `prompt,completion` pairs |
 | `data/chat-iris.csv` | Training data: `prompt,completion,Source` triples |
 | `tests/` | Pytest suite for `iris_llm`, the parser, the pipeline helpers, and the data tools |
-| `scripts/check_markdown_links.py` | CI helper: validates relative links and heading anchors in all markdown |
-| `scripts/check_openrouter_models.py` | CI helper: verifies the scripts' model IDs against the live OpenRouter catalog |
-| `.github/workflows/ci.yml` | CI: Python syntax, markdown links, unit tests, model-ID catalog check, pinned GNN conformance |
+| `scripts/gate.py` | The gate: one entry point whose arms (`syntax`, `docs`, `fast`, `tests`, `models`, `gnn`) CI also runs |
+| `scripts/check_markdown_links.py` | Gate helper: validates relative links and heading anchors in all markdown |
+| `scripts/check_openrouter_models.py` | Gate helper: verifies the scripts' model IDs against the live OpenRouter catalog |
+| `scripts/check_gnn_conformance.py` | Gate helper: installs the parser revision pinned in `.github/gnn-pin.json` and verifies the repository's GNN sketches |
+| `.github/workflows/ci.yml` | CI: the `checks` job (`syntax`, `docs`, `tests`, `models`) and the `gnn conformance (pinned)` job (`gnn`) |
 | `.aii/config.yaml` | InstituteOS sidecar metadata |
 | `LICENSE` | CC BY 4.0 license text |
 
@@ -103,7 +105,8 @@ The test suite and CI need only [requirements-dev.txt](requirements-dev.txt):
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest tests/ -q
+python scripts/gate.py          # default arm: the offline unit suite
+python scripts/gate.py all      # every check, once each (see docs/RUN_GUIDE.md)
 ```
 
 Model calls go through `iris_llm.py`, which builds the current `openai` SDK
@@ -119,9 +122,12 @@ environment variables (see [.env.example](.env.example) for a template):
 
 ## Documentation
 
-- [docs/](docs/) — documentation index
+- [docs/](docs/) — documentation hub
+- [docs/documentation-index.md](docs/documentation-index.md) — flat index of long-lived docs
+- [docs/RUN_GUIDE.md](docs/RUN_GUIDE.md) — the gate entry point, its arms, and the CI jobs
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — component and pipeline overview
 - [docs/DATA.md](docs/DATA.md) — data files, schemas, and generated outputs
+- [docs/_generated/GATES.md](docs/_generated/GATES.md) — generated arm table, test inventory, and measured runtimes
 - [TO-DO.md](TO-DO.md) — review findings and improvement backlog
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute
 - [SECURITY.md](SECURITY.md) — security notes

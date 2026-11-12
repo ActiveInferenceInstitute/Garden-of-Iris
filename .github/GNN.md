@@ -1,12 +1,25 @@
 # GNN conformance
 
-`gnn conformance (pinned)` is defined in `.github/workflows/ci.yml` and reads
-`.github/gnn-pin.json`, which pins
-`ActiveInferenceInstitute/Generalized_Notation_Notation` at `v5.0.3`
-(`8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`).
+The conformance check is the `gnn` arm of `scripts/gate.py`, implemented once
+in `scripts/check_gnn_conformance.py`. CI runs it as job key `gnn-conformance`,
+display name `gnn conformance (pinned)`, in
+[`workflows/ci.yml`](workflows/ci.yml).
 
-The job verifies the pin and installed parser, parses every `*.gnn.md` sketch
-in the repository, and type-checks them. When the repository has no sketch yet,
-it parses the pinned upstream `input/gnn_files/basics/static_perception.md`
-exemplar; this is a pipeline and pin conformance baseline, not a claim that the
-repository already contains a model.
+It reads [`gnn-pin.json`](gnn-pin.json) (schema `gnn-importer-pin/v1`), which
+pins `ActiveInferenceInstitute/Generalized_Notation_Notation` at `v5.0.3`
+(`8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`, recorded 2026-11-12), installs
+that exact revision with `--no-deps`, and checks the installed parser reports
+version `5.0.3`.
+
+What it parses: every `*.gnn.md` sketch under the repository root, excluding
+`.git`, `.venv`, `venv`, `node_modules`, `__pycache__`, `.pytest_cache`, and
+`.mypy_cache` — each sketch is parsed, syntax-checked, and type-checked by the
+pinned `GNNTypeChecker`. When the repository has no sketch yet, the baseline is
+the pinned upstream `input/gnn_files/basics/static_perception.md` exemplar,
+parsed and type-checked the same way; the check prints a JSON summary naming
+`"source": "pinned-exemplar"`. This is a pipeline and pin conformance baseline,
+not a claim that the repository already contains a model.
+
+The pinned package declares `requires-python >=3.11,<3.15`, so run the arm on
+Python 3.12 (the CI pin). Details and measured runtimes:
+[`../docs/RUN_GUIDE.md`](../docs/RUN_GUIDE.md).
