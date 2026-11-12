@@ -11,7 +11,6 @@ repo:
   default_branch: master
 institute:
   category: research
-  maturity: wip
   steward: Active Inference Institute
 ecosystem:
   relations:
@@ -19,7 +18,6 @@ ecosystem:
     relation: referenced-by
     note: Federated via the InstituteOS .aii manifest.
   - repo: ActiveInferenceInstitute/Generalized_Notation_Notation
-    relation: references
     note: Uses Generalized Notation Notation (GNN) for model specifications.
   links:
     github: https://github.com/ActiveInferenceInstitute/Garden-of-Iris
@@ -66,7 +64,8 @@ tasks:
     description: Compile every Python module.
   docs:
     cmd: python scripts/gate.py docs
-    description: "Check links, index coverage, publishing digests and generated facts. Docs index: docs/documentation-index.md. Manuscript command: none."
+    description: 'Check links, index coverage, publishing digests and generated facts.
+      Docs index: docs/documentation-index.md. Manuscript command: none.'
   fast:
     cmd: python scripts/gate.py fast
     description: Run the default offline unit suite.
@@ -78,13 +77,13 @@ tasks:
     description: Check model IDs against the live OpenRouter catalog (network).
   gnn:
     cmd: python scripts/gate.py gnn
-    description: "Run pinned GNN conformance (network, Python 3.12). Pin: .github/gnn-pin.json."
+    description: 'Run pinned GNN conformance (network, Python 3.12). Pin: .github/gnn-pin.json.'
 docs:
 - README.md
 - AGENTS.md
-- .aii/docs/INTEGRATION.md
+- docs/INTEGRATION.md
 - docs/README.md
-- .aii/AGENTS.md
-- docs/documentation-index.md
-- docs/workflows/publishing.md
+- ../docs/documentation-index.md
+- ../docs/workflows/publishing.md
+- docs/AGENTS.md
 schema: aii-sidecar/v1
