@@ -57,7 +57,7 @@ them.
 | Claim type | Authoritative source | Rule |
 | --- | --- | --- |
 | Commands, defaults, CI steps | `scripts/gate.py`, `.github/workflows/ci.yml` | Run the arm; do not restate a command that the gate defines. |
-| Arm runtimes, test counts | [`_generated/GATES.md`](_generated/GATES.md) | Regenerate with `python scripts/gate.py report`; never hand-edit a number. |
+| Arm runtimes, test counts | [`_generated/GATES.md`](_generated/GATES.md), rendered from the `measure` receipts | `measure --label before\|after` then `report`; never hand-edit a number. |
 | The GNN pin | [`.github/gnn-pin.json`](../.github/gnn-pin.json) | Cite the revision from the pin file, not from an older guide. |
 | Script behavior, data schemas | The source and [DATA.md](DATA.md) | State explicitly when a script is a non-runnable sketch. |
 

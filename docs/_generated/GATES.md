@@ -33,28 +33,44 @@ check once with `all` (`syntax docs tests models gnn`).
 
 ## Measured runtimes
 
-One run per arm on the host below, immediately after `python scripts/gate.py report`.
-The virtualenv was prepared: `requirements-dev.txt` installed and the `gnn` arm's
-pinned parser present from an earlier run, so a `gnn` timing here does not include a
-cold clone. These are a record of that run, not a freshness claim and not a CI
-claim; re-run `report` to refresh them.
+Two committed receipts: `docs/_generated/gate-before.json` is the pre-gate
+baseline (`measure --label before`: the commands `.github/workflows/ci.yml` ran at
+a2ad766) and `docs/_generated/gate-after.json` is the gate arms (`measure --label
+after`).
+Each receipt is one pass per arm and covers every command that side ran: the
+baseline `docs` entry is the link check alone, while the gate `docs` arm also runs
+the generated-facts check. `report` renders the receipts; it times nothing itself.
 
-The table lists every arm, including `fast`, which `all` omits because `tests`
-covers it. `report` skips the `docs` arm's freshness step: it is rewriting that
-document in this run.
+These are measurements on one host in one prepared virtualenv, not a CI claim and
+not a freshness claim. Re-measure after changing an arm, then re-run `report`.
 
-- Recorded: 2026-11-12T13:01:22Z
+- Before receipt: 2026-11-12T13:07:42Z
+- After receipt: 2026-11-12T13:07:53Z
 - Host: macOS-27.0.1-arm64-arm-64bit (arm64)
 - Python: 3.12.16
-- pytest: 9.2.0
-- openai: 3.49.0
-- pandas: 3.1.1
+- Versions: pytest 9.2.0, openai 3.49.0, pandas 3.1.1
 
-| Arm | Result | Wall time |
-| --- | --- | --- |
-| `syntax` | ok | 1.14s |
-| `docs` | ok | 0.43s |
-| `fast` | ok | 5.40s |
-| `tests` | ok | 5.25s |
-| `models` | ok | 2.53s |
-| `gnn` | ok | 2.51s |
+| Arm | Before | After | Δ |
+| --- | --- | --- | --- |
+| `syntax` | 0.82s | 0.80s | same command: variance |
+| `docs` | 0.25s | 2.78s | +2.53s |
+| `fast` | — (arm did not exist) | 2.74s | — |
+| `tests` | 8.97s | 2.37s | same command: variance |
+| `models` | 0.45s | 1.30s | same command: variance |
+| `gnn` | 1.79s | 1.22s | -0.57s |
+
+Δ appears only where the command changed. Where both sides ran the identical
+command the column says `same command: variance`, because one pass per side cannot
+separate a real difference from warm-cache noise. `docs` gained the generated-facts
+check and `gnn` collapsed two workflow steps into one arm; those Δ values describe
+changed work, not a speed change. No speedup is claimed.
+
+### Baseline commands
+
+| Arm | Commands as recorded |
+| --- | --- |
+| `syntax` | `python -m compileall -q .` |
+| `docs` | `python scripts/check_markdown_links.py` |
+| `tests` | `python -m pytest tests -q` |
+| `models` | `python scripts/check_openrouter_models.py` |
+| `gnn` | `python scripts/check_gnn_conformance.py --no-verify`<br>`python scripts/check_gnn_conformance.py --no-install` |

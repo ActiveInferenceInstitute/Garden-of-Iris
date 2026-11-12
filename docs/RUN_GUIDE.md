@@ -15,10 +15,18 @@ python scripts/gate.py list     # the arm table with the exact commands
 ```
 
 The exact command of every arm, the current test inventory, and the measured
-wall time of each arm are in the generated
-[`_generated/GATES.md`](_generated/GATES.md). That file is produced by
-`python scripts/gate.py report`; the `docs` arm fails when the committed arms
-or test counts no longer match the code.
+before/after wall times are in the generated
+[`_generated/GATES.md`](_generated/GATES.md). It is rendered from committed
+receipts, not from prose: `python scripts/gate.py measure --label before`
+records the pre-gate commands and `--label after` records the gate arms, one
+pass per arm, each into `docs/_generated/gate-<label>.json`;
+`python scripts/gate.py report` renders the facts and the comparison. The
+`docs` arm runs `report --check`, which fails when the committed arms, test
+counts, or receipt commands no longer match the code.
+
+Refresh order after changing an arm: `report` (writes the facts the freshness
+check compares against), then `measure --label after`, then `report`. Re-run
+`measure --label before` only if the recorded baseline changes.
 
 ## Arms
 
