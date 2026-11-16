@@ -65,14 +65,14 @@ them.
 
 | Script | One-liner |
 | --- | --- |
-| `discord_bot.py` | Discord bot "Iris": auto-summarizing pools, DM relay, slash commands |
-| `hindsight.py` | Hindsight summarization pipeline (daily → weekly → monthly) + training-data construction |
-| `parse_fourthought.py` | CLI that parses a URL or PDF into FourThought thought types |
-| `iris_apparently.py` | Repaired TensorFlow "DemocraticLLM" transformer sketch (source + temporal embeddings); smoke-tested, not trained |
-| `iris_llm.py` | Canonical OpenRouter model client (`chat()` / `complete()`); current `openai` SDK surface |
-| `twitter_archive.py` | Converts a Twitter archive export to CSV |
-| `text_process.py` | Builds prompt→completion sentence pairs with NLTK |
-| `tests/` | Pytest suite for the client, parser, pipeline helpers, and data tools |
+| `discord_bot.py` | Remote-model bot with `/`-prefixed commands; not a consumer of sketch weights |
+| `hindsight.py` | Independently supplied archives → bound summaries and seeded prompt/completion pairs |
+| `parse_fourthought.py` | Web/PDF text → printed thought/type pairs, not the hindsight input export |
+| `iris_apparently.py` | Separate dataset and private-bundle neural sketch; historical smoke does not qualify current component changes |
+| `iris_llm.py` | Validated first-choice helpers plus raw-response/all-choice interfaces |
+| `twitter_archive.py` | Twitter JS → schema-preserving CSV consumed by hindsight |
+| `text_process.py` | Independent sentence-pair builder |
+| `tests/` | Core, optional components, gate and actual GNN admission controls; prerequisites are explicit |
 
 ## Conventions
 

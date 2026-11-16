@@ -24,25 +24,30 @@ pass per arm, each into `docs/_generated/gate-<label>.json`;
 `docs` arm runs `report --check`, which fails when the committed arms, test
 counts, or receipt commands no longer match the code.
 
-Refresh order after changing an arm: `report` (writes the facts the freshness
-check compares against), then `measure --label after`, then `report`. Re-run
-`measure --label before` only if the recorded baseline changes.
+After an arm changes, generated inventory and measured receipt commands may be stale.
+`report` renders facts but does not remeasure an arm or qualify unchanged receipt text.
+New `measure --label after` work requires authorization for every included arm
+(including network/model/GNN provisioning); preserve the historical `before` receipt.
+Do not hand-edit measured numbers or mark `docs` green while `report --check` fails.
 
 ## Arms
 
 | Arm | What it checks | Needs |
 | --- | --- | --- |
-| `syntax` | Compiles every module. This is the repository's only lint gate: there is no static linter, formatter, or type checker, so there is no `types` arm. | Python only |
+| `syntax` | Compiles authored Python into disposable output, excluding environments/caches. No static linter, formatter or type checker is claimed. | Python only |
 | `docs` | Publishing artifact digests and drift selftest, canonical relative links/anchors and docs-index coverage, then generated-number freshness. | `requirements-dev.txt` |
-| `fast` | The offline unit suite (`-m "not network"`). This is the default arm. | `requirements-dev.txt` |
-| `tests` | The whole unit suite. | `requirements-dev.txt` |
+| `fast` | Offline-marked unit selection (`-m "not network"`); default arm | Core dependencies plus reviewed GNN inputs; optional component prerequisites remain explicit |
+| `tests` | Whole unit suite | All actual component runtimes and reviewed GNN inputs |
 | `models` | The scripts' model IDs exist in the live OpenRouter catalog. | Network |
-| `gnn` | Pinned GNN conformance: install `.github/gnn-pin.json`'s parser revision, parse and type-check the repository's GNN sketches. | Network, Python 3.12 |
+| `gnn` | Guarded pinned parser/checker with reviewed bootstrap/manifest; source and installed modes are distinct | Prepared compatible Python and reviewed inputs; default acquisition/provisioning may need network |
 
 `fast` is the offline subset of `tests`; `pytest.ini` declares the `network`
 marker, and no test carries it today, so both arms collect the same suite. `all`
 runs `syntax`, `docs`, `tests`, `models`, and `gnn` — it does not run `fast`
 again, because `tests` covers it.
+
+Administrative modes `list`, `report` and `measure` must stand alone; mixed commands
+or unknown trailing arguments fail before executing an arm or writing a report.
 
 ## Interpreter
 
@@ -74,8 +79,20 @@ unavailable, so local gate runs are the only executable gate; a green local
   2026-11-12.
 - Pointer: [`.github/GNN.md`](../.github/GNN.md) records what the conformance
   job parses and which sketch set counts.
-- Implementation: `scripts/check_gnn_conformance.py`; the arm fails on a schema,
-  repository, revision, or installed-version mismatch.
+- Implementation: `scripts/check_gnn_conformance.py`; pin reading uses independently
+  checked standalone bootstrap bytes. The independently frozen complete manifest,
+  import ownership, source/origin and lifetime exit checks must all agree before a
+  verdict is emitted. Version equality alone is insufficient.
+
+For no-install use, supply `GNN_BOOTSTRAP`, `GNN_SOURCE_MANIFEST` and an actual
+`GNN_EXEMPLAR` local model when no repository sketches exist. Explicit source mode
+also requires `GNN_ORIGIN_MODE=source` and `GNN_PACKAGE_ROOT`; it never qualifies an
+installed distribution. `GNN_NO_INSTALL=1 python scripts/gate.py gnn` preserves the
+selected real interpreter. Installed mode requires genuine exact Git PEP610 ownership
+and complete package-content agreement. Neither mode proves native execution or
+scientific semantics; `execution_verified` remains false.
+The regression module uses these reviewed inputs and actual parser/checker processes.
+Hosted resource delivery is a separate prerequisite, not implied by local proof.
 
 ## Documentation check
 

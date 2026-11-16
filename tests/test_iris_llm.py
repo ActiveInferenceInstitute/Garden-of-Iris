@@ -128,3 +128,26 @@ def test_client_is_created_once(fake_sdk):
 def test_retry_exceptions_are_exported():
     assert issubclass(iris_llm.RateLimitError, Exception)
     assert issubclass(iris_llm.APITimeoutError, Exception)
+
+
+@pytest.mark.parametrize("contents", [[], [None], [""], ["   "], [3]])
+def test_no_text_is_a_canonical_failure(monkeypatch, contents):
+    fake = _FakeOpenAI([], contents=contents)
+    monkeypatch.setattr(iris_llm, "openai", fake)
+    monkeypatch.setattr(iris_llm, "_client", None)
+    with pytest.raises(iris_llm.ModelOutputError):
+        iris_llm.chat([{"role": "user", "content": "private prompt"}], model="m")
+    with pytest.raises(iris_llm.ModelOutputError):
+        iris_llm.response_texts(_Response(contents))
+
+
+def test_refusal_has_explicit_error_without_echoing_prompt():
+    response = _Response(["text"])
+    response.choices[0].message.refusal = "private refusal detail"
+    with pytest.raises(iris_llm.ModelOutputError) as error:
+        iris_llm.response_texts(response)
+    assert "private refusal detail" not in str(error.value)
+
+
+def test_canonical_multi_choice_extraction_preserves_every_text():
+    assert iris_llm.response_texts(_Response([" first ", " second "])) == ["first", "second"]

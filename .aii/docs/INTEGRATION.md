@@ -31,7 +31,7 @@
 | Repository | Relation | Note |
 | --- | --- | --- |
 | `ActiveInferenceInstitute/InstituteOS` | `referenced-by` | Federated via the InstituteOS .aii manifest. |
-| `ActiveInferenceInstitute/Generalized_Notation_Notation` | `references` | Uses Generalized Notation Notation (GNN) for model specifications. |
+| `ActiveInferenceInstitute/Generalized_Notation_Notation` | `references` | References GNN and checks its pinned upstream exemplar; no authored generative model is declared. |
 
 ## Key artifacts
 
@@ -44,12 +44,14 @@
 | `CITATION.cff` | `citation` | Machine-readable citation metadata. |
 | `tests` | `test` | Test suite. |
 | `docs` | `doc` | Documentation tree. |
+| `docs/documentation-index.md` | `doc` | Repository documentation index. |
+| `docs/workflows/publishing.md` | `doc` | Publishing artifact identity and adapter contract. |
 
 ## Portable tasks
 
 | Task | Command | Working directory | Description |
 | --- | --- | --- | --- |
-| `syntax` | `python scripts/gate.py syntax` | `.` | Compile every Python module. |
+| `syntax` | `python scripts/gate.py syntax` | `.` | Compile authored Python, excluding environments and caches. |
 | `docs` | `python scripts/gate.py docs` | `.` | Check links, index coverage, publishing digests and generated facts. Docs index: docs/documentation-index.md. Manuscript command: none. |
 | `fast` | `python scripts/gate.py fast` | `.` | Run the default offline unit suite. |
 | `tests` | `python scripts/gate.py tests` | `.` | Run the whole Python test suite. |

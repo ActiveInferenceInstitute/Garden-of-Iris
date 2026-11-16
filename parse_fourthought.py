@@ -48,8 +48,8 @@ EXPLANATION = (
     "In the early 1900's the Spanish flu became a pandemic, REFLECTION\n"
     "The world is a vampire, STATEMENT\n"
     "The future is bright and prosperous, PREDICTION\n"
-    "This will require new tools PREDICTION\n"
-    "Where did I leave my keys? QUESTION?\n\n"
+    "This will require new tools, PREDICTION\n"
+    "Where did I leave my keys?, QUESTION\n\n"
     "The text you are receiving is scraped from the internet. It may be noisy and contain non-standard capitalization. Strip white space and recase the claims to be readable by humans. Follow the format above in printing with one line between each discrete thought.\n\n"
     "You will be reading text from the internet and parsing it into four thought types. Reflections are about the past. Statements are about now. Predictions are about the future. Predictions can't be verified until time passes. Memories can be verified by referencing a record. If a thought is a reflection we should be able to check the record to see if it matches. Statements are about now and can be verified through a democratic process of asking the community. Predictions can not be verified immediately. Time must pass for predictions to be verified."
 )
@@ -91,18 +91,15 @@ def extract_text_from_pdf(path):
 
 def clean_text(text):
     """Apply the pipeline's cleaning: single-line text, recased sentences."""
-    text = text.replace('\n', ' ')
-    sentences = text.split('. ')
-    formatted_sentences = []
-    for sentence in sentences:
-        formatted_sentence = sentence.capitalize()
-        formatted_sentence = formatted_sentence[0] + formatted_sentence[1:].lower()
-        formatted_sentences.append(formatted_sentence)
-    return '. '.join(formatted_sentences)
+    text = text.replace('\n', ' ').strip()
+    sentences = [sentence.strip().capitalize() for sentence in text.split('. ') if sentence.strip()]
+    return '. '.join(sentences)
 
 
 def chunk_text(text, max_chunk_length=chunk_length):
     """Split text into chunks of at most ``max_chunk_length`` characters."""
+    if max_chunk_length < 1:
+        raise ValueError("max_chunk_length must be positive")
     return [text[i:i + max_chunk_length] for i in range(0, len(text), max_chunk_length)]
 
 
@@ -112,6 +109,8 @@ def parse_thoughts(text, model=None):
     The conversation grows with each chunk and only the last four messages are
     replayed per request, matching the original pipeline behavior.
     """
+    if not text.strip():
+        return []
     if model is None:
         model = models["thought_type"]
 
@@ -130,8 +129,7 @@ def parse_thoughts(text, model=None):
         truncated_convo += conversation[-4:]
 
         response = iris_llm.chat_completion(truncated_convo, model=model)
-        for choice in response.choices:
-            assistant_message = choice.message.content
+        for assistant_message in iris_llm.response_texts(response):
             conversation.append({"role": "assistant", "content": assistant_message})
             claims += [c.strip() for c in assistant_message.split("\n") if c.strip()]
 
@@ -141,9 +139,9 @@ def parse_thoughts(text, model=None):
 def classify_claim(claim):
     """Return ``(thought, type)`` for a model line, or ``None`` if malformed."""
     match = re.match(PATTERN, claim)
-    if not match:
+    if not match or not match.group(1).strip():
         return None
-    return match.group(1), match.group(2).upper()
+    return match.group(1).strip(), match.group(2).upper()
 
 
 def main(argv=None):
@@ -166,14 +164,29 @@ def main(argv=None):
         print(f"Failed to read input file: {exc}")
         return 1
 
-    for claim in parse_thoughts(clean_text(text)):
+    cleaned = clean_text(text)
+    if not cleaned:
+        print("No extractable text in input.", file=sys.stderr)
+        return 1
+    try:
+        claims = parse_thoughts(cleaned)
+    except iris_llm.ModelOutputError as exc:
+        print(f"Model output failure: {exc}", file=sys.stderr)
+        return 1
+    accepted = rejected = 0
+    for claim in claims:
         parsed = classify_claim(claim)
         if parsed:
+            accepted += 1
             thought, thought_type = parsed
-            print(thought)
-            print("\n")
-            print(thought_type)
-            print("\n")
+            print(f"{thought}\n\n{thought_type}\n")
+        else:
+            rejected += 1
+    if rejected:
+        print(f"Rejected {rejected} malformed classification line(s).", file=sys.stderr)
+    if not accepted:
+        print("No valid classifications returned.", file=sys.stderr)
+        return 1
 
     return 0
 

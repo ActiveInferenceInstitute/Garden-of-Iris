@@ -1,7 +1,7 @@
 # .aii — InstituteOS sidecar
 
-This folder is the committed [InstituteOS](https://github.com/ActiveInferenceInstitute/InstituteOS)
-sidecar for **`ActiveInferenceInstitute/Garden-of-Iris`**. It records curated institutional metadata that the GitHub
+This folder is the committed InstituteOS sidecar for **`ActiveInferenceInstitute/Garden-of-Iris`**.
+It records curated institutional metadata that the GitHub
 API cannot provide — identity, category, maturity, ecosystem relations, key artifacts,
 provenance, and portable tasks — so InstituteOS can federate a unified view across
 Institute repositories without touching this project's own content. The schema is
@@ -40,7 +40,7 @@ Institute repositories without touching this project's own content. The schema i
 
 | Task | Command | Working directory | Description |
 | --- | --- | --- | --- |
-| `syntax` | `python scripts/gate.py syntax` | `.` | Compile every Python module. |
+| `syntax` | `python scripts/gate.py syntax` | `.` | Compile authored Python, excluding environments and caches. |
 | `docs` | `python scripts/gate.py docs` | `.` | Check links, index coverage, publishing digests and generated facts. Docs index: docs/documentation-index.md. Manuscript command: none. |
 | `fast` | `python scripts/gate.py fast` | `.` | Run the default offline unit suite. |
 | `tests` | `python scripts/gate.py tests` | `.` | Run the whole Python test suite. |
@@ -49,8 +49,8 @@ Institute repositories without touching this project's own content. The schema i
 
 ## Links
 
-- **github:** https://github.com/ActiveInferenceInstitute/Garden-of-Iris
-- **website:** https://www.activeinference.org
+- **github:** <https://github.com/ActiveInferenceInstitute/Garden-of-Iris>
+- **website:** <https://www.activeinference.org>
 
 ## Validate
 

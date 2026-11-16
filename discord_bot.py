@@ -5,8 +5,11 @@ import random
 import time
 import datetime
 import dateutil
+import tempfile
+import threading
+from pathlib import Path
+from parse_fourthought import clean_text, extract_text_from_url
 
-import textwrap
 import iris_llm  # OpenRouter model client (current openai SDK surface)
 import discord
 import asyncio
@@ -15,8 +18,6 @@ import json
 
 import pandas as pd
 
-from selenium import webdriver
-from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from discord import app_commands
@@ -26,28 +27,106 @@ from pyairtable import Table
 from discord.ui import Button, View, TextInput, Modal
 from discord.ext import commands
 
-discord_key = os.getenv("DISCORD_BOT_KEY")
-# Model calls go through iris_llm (OpenRouter; OPENROUTER_API_KEY, falling back
-# to OPENAI_API_KEY).
-airtable_key = os.environ["AIRTABLE_API_KEY"]
-
 intents = discord.Intents.default()
 intents.members = True
+intents.message_content = True
 bot = commands.Bot(command_prefix='/', intents=intents)
-airtable = Table(airtable_key, 'app2X00KuiIxPwGsf', 'cards')
+airtable = None
+tarot_lookup = {}
+_training_lock = threading.Lock()
 
-# Get Card Names and Text
-try:
-	records = []
+
+def setup_integrations():
+	"""Perform service/private-input initialization only at explicit startup."""
+	global airtable, tarot_lookup
+	airtable = Table(os.environ["AIRTABLE_API_KEY"], 'app2X00KuiIxPwGsf', 'cards')
+	try:
+		records = [record for page in airtable.iterate() for record in page]
+		tarot_lookup = {
+			record['fields']['Card Name']: record['fields'].get('Short Description', '')
+			for record in records
+		}
+	except Exception:
+		frame = pd.read_csv('tarot_text.csv')
+		tarot_lookup = dict(zip(frame['card_name'], frame['text']))
+
+
+async def complete_async(*args, **kwargs):
+	return await asyncio.to_thread(iris_llm.complete, *args, **kwargs)
+
+
+async def chat_async(*args, **kwargs):
+	return await asyncio.to_thread(iris_llm.chat, *args, **kwargs)
+
+
+async def chat_completion_async(*args, **kwargs):
+	return await asyncio.to_thread(iris_llm.chat_completion, *args, **kwargs)
+
+
+async def send_embed_text(target, title, text, *, image_url=None, view=None):
+	"""Deliver all text, attaching an image first and interactive controls last."""
+	for offset in range(0, len(text), 4000):
+		embed = discord.Embed(title=title[:256], description=text[offset:offset + 4000])
+		if image_url and offset == 0:
+			embed.set_image(url=image_url)
+		await target.send(embed=embed, view=view if offset + 4000 >= len(text) else None)
+
+
+def trim_context(conversation, limit=20000):
+	total = sum(len(message["content"]) for message in conversation)
+	while total > limit and len(conversation) > 2:
+		total -= len(conversation.pop(1)["content"])
+	return conversation
+
+
+def group_prompts(question, answers, chunk_length=1750):
+	if chunk_length < 1:
+		raise ValueError("chunk_length must be positive")
+	return [pool_prompt(question, answers[index:index + chunk_length]) for index in range(0, len(answers), chunk_length)]
+
+
+def _write_training_frame(frame, path):
+	path = Path(path)
+	temporary = None
+	try:
+		with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", dir=path.parent, delete=False) as handle:
+			temporary = Path(handle.name)
+			frame.to_csv(handle, index=False)
+		temporary.replace(path)
+	finally:
+		if temporary is not None:
+			temporary.unlink(missing_ok=True)
+
+
+def _read_training_frame(path):
+	try:
+		frame = pd.read_csv(path)
+	except FileNotFoundError:
+		return pd.DataFrame(columns=['prompt', 'completion', 'speaker'])
+	if not {'prompt', 'completion', 'speaker'}.issubset(frame.columns):
+		raise ValueError("Training CSV requires prompt, completion and speaker columns")
+	return frame
+
+
+def append_training_data(prompt, completion, speaker, path='iris_training-data.csv'):
+	global training_data
+	with _training_lock:
+		frame = _read_training_frame(path)
+		row = {"prompt": prompt, "completion": completion, "speaker": speaker}
+		updated = pd.concat([frame, pd.DataFrame([row])], ignore_index=True)
+		_write_training_frame(updated, path)
+		training_data = updated
+
+
+def card_image(card_name):
+	if airtable is None:
+		raise RuntimeError("Airtable is not initialized")
 	for page in airtable.iterate():
-		records += page
-
-	tarot_lookup = {record['fields']['Card Name']: record['fields'].get('Short Description', '') for record in records}
-except:
-	df = pd.read_csv('tarot_text.csv')
-	names = df['card_name'].tolist()
-	descriptions = df['text'].tolist()
-	tarot_lookup = dict(zip(names, descriptions))
+		for record in page:
+			fields = record["fields"]
+			if fields["Card Name"] == card_name and fields.get("All images"):
+				return fields["All images"][0]["url"]
+	return ""
 
 training_data = ""
 
@@ -75,13 +154,21 @@ class AskModal(Modal, title="Ask Modal"):
 	def add_view(self, question, view: View):
 		self.answer.placeholder = question[0:100]
 		self.view = view
+		self.submission = None
 
 	async def on_submit(self, interaction: discord.Interaction):
-		embed = discord.Embed(title = "Your Response", description = f"\n{self.answer}")
-		embed.set_author(name = interaction.user)
-		await interaction.response.send_message(embed=embed)
-		print(self.answer)
-		self.view.stop()
+		if self.submission is not None:
+			await interaction.response.send_message("Response already submitted.", ephemeral=True)
+			return
+		value = str(self.answer.value)
+		self.submission = (interaction.user.id, interaction.user.name, value)
+		embed = discord.Embed(title="Your Response", description=value)
+		embed.set_author(name=str(interaction.user))
+		try:
+			await interaction.response.send_message(embed=embed)
+		finally:
+			self.view.stop()
+			self.stop()
 
 def response_view(modal_text="default text", modal_label="Response", button_label="Answer"):	
 
@@ -110,11 +197,10 @@ def response_view(modal_text="default text", modal_label="Response", button_labe
 def group_share(thought="thought", prompt="", prompter="latent space"):
 
 	channel = bot.get_channel(1022572367244967979)
-	embed = discord.Embed(title="Seeds of Wisdom", description=f"{thought}\n\n**Gardener**\n{prompter}")
 
 	async def button_callback(interaction):
 		await interaction.response.defer()
-		await channel.send(embed=embed)
+		await send_embed_text(channel, "Seeds of Wisdom", f"{thought}\n\n**Gardener**\n{prompter}")
 
 	button = Button(label="share", style=discord.ButtonStyle.blurple)
 	button.callback = button_callback
@@ -137,35 +223,15 @@ def elaborate(ctx, prompt="prompt"):
 		button.disabled = True
 		await interaction.response.defer()
 
-		response_text = iris_llm.complete(
-			e_prompt,
-			model=models["semantic"],
-			temperature=0.11,
-			max_tokens=222,
-			top_p=1,
-			frequency_penalty=1,
-			presence_penalty=1,
-			stop=["END"]
-		).strip()
+		response_text = await complete_async(
+			e_prompt, model=models["semantic"], temperature=0.11, max_tokens=222,
+			top_p=1, frequency_penalty=1, presence_penalty=1, stop=["END"],
+		)
 
-		if len(response_text) == 0:
-
-			response_text = iris_llm.complete(
-				e_prompt,
-				model="openai/gpt-4o-mini",
-				temperature=1,
-				max_tokens=222,
-				top_p=1,
-				frequency_penalty=2,
-				presence_penalty=2,
-				stop=["END"]
-			).strip()
 
 		response_text = response_text.replace("###", "").strip()
 
-		embed = discord.Embed(title = "Elaboration (beta)", description = f"**Prompt**\n{prompt}\n\n**Elaboration**\n{response_text}")
-
-		await ctx.send(embed=embed)
+		await send_embed_text(ctx, "Elaboration (beta)", f"**Prompt**\n{prompt}\n\n**Elaboration**\n{response_text}")
 
 
 	button.callback = button_callback
@@ -178,19 +244,11 @@ def redo_view(ctx, prompt, question):
 
 		await interaction.response.defer()
 
-		response_text = iris_llm.complete(
-			prompt,
-			model="openai/gpt-4o-mini",
-			temperature=1,
-			max_tokens=222,
-			top_p=1,
-			frequency_penalty=2,
-			presence_penalty=2,
-			stop=["END"]
-		).strip()
-		embed = discord.Embed(title = "Consensus", description = f"**Question**\n{question}\n\n**Consensus**\n{response_text}")
-
-		await ctx.send(embed=embed)
+		response_text = await complete_async(
+			prompt, model="openai/gpt-4o-mini", temperature=1, max_tokens=222,
+			top_p=1, frequency_penalty=2, presence_penalty=2, stop=["END"],
+		)
+		await send_embed_text(ctx, "Consensus", f"**Question**\n{question}\n\n**Consensus**\n{response_text}")
 
 	view = View()
 	view.timeout = None
@@ -200,16 +258,14 @@ def redo_view(ctx, prompt, question):
 
 	return view
 
-def load_training_data():
-
+def load_training_data(path='iris_training-data.csv'):
 	global training_data
-
-	try:
-		training_data = pd.read_csv('iris_training-data.csv')
-	except:
-		with open('iris_training-data.csv', 'w', encoding='utf-8') as f:
-			training_data = pd.DataFrame(columns=['prompt', 'completion', 'speaker'])
-			training_data.to_csv('iris_training-data.csv', encoding='utf-8', index=False)
+	with _training_lock:
+		frame = _read_training_frame(path)
+		if not Path(path).exists():
+			_write_training_frame(frame, path)
+		training_data = frame
+		return frame
 
 def members(debug=False):
 
@@ -255,67 +311,27 @@ def pool_prompt(question, joined_answers):
 	return prompt
 
 def chunk_text(text, chunk_length=1000):
-
-	# Clean the Text
-	text = text.replace('\n', ' ')
-
-	# Split the text into individual sentences
-	sentences = text.split('. ')
-
-	# Capitalize the first letter and make the remaining letters lowercase in each sentence
-	formatted_sentences = []
-	for sentence in sentences:
-		formatted_sentence = sentence.capitalize()
-		formatted_sentence = formatted_sentence[0] + formatted_sentence[1:].lower()
-		formatted_sentences.append(formatted_sentence)
-
-	# Join the sentences back into a single string
-	text = '. '.join(formatted_sentences)
-
-	# Split the text into chunks of maximum length
-	text_chunks = [text[i:i+chunk_length] for i in range(0, len(text), chunk_length)]
-
-	return text_chunks
+	if chunk_length < 1:
+		raise ValueError("chunk_length must be positive")
+	text = clean_text(text)
+	return [text[index:index + chunk_length] for index in range(0, len(text), chunk_length)]
 
 async def interpretation(ctx, prompt):
 
-    text = iris_llm.complete(
-        prompt,
-        model=models["semantic"],
-        temperature=0.8,
-        max_tokens=222,
-        top_p=1,
-        frequency_penalty=2,
-        presence_penalty=2,
-        stop=["END"]
-    ).strip()
-    embed = discord.Embed(title="Interpretation", description=text)
+    text = await complete_async(
+        prompt, model=models["semantic"], temperature=0.8, max_tokens=222,
+        top_p=1, frequency_penalty=2, presence_penalty=2, stop=["END"],
+    )
     view, modal = response_view(modal_text="Write your feedback here", modal_label="Feedback", button_label="Send Feedback")
     view.add_item(group_share(thought=text, prompter=ctx.message.author.name))
     view.add_item(elaborate(ctx, prompt=text))
-    view.add_item(modal)
-    await ctx.send(embed=embed, view=view)
+    await send_embed_text(ctx, "Interpretation", text, view=view)
 
-def one_shot(message):
-
-	# Get Iris One Shot Answer
-	try:
-		iris_answer = iris_llm.complete(
-			message.content,
-			model=models["chat-iris"],
-			temperature=0.9,
-			max_tokens=222,
-			top_p=1,
-			frequency_penalty=1.5,
-			presence_penalty=1.5,
-			stop=["END"]
-		)
-		iris_answer = iris_answer.replace("###", "").strip()
-	except Exception as e:
-		print(f"Error: {e}")
-		iris_answer = ""
-
-	return iris_answer
+def one_shot(content):
+	return iris_llm.complete(
+		content, model=models["chat-iris"], temperature=0.9, max_tokens=222,
+		top_p=1, frequency_penalty=1.5, presence_penalty=1.5, stop=["END"],
+	).replace("###", "").strip()
 
 async def question_pool(message):
 
@@ -359,7 +375,7 @@ async def question_pool(message):
 	conversation.append({"role": "system", "content": "My primary job is to summarize what people are uncertain about. I will summarize peoples questions and that is it. I will vary my output but keep them focused on what people don't know and keep it 250 words long"})
 	conversation.append({"role": "assistant", "content": "I NEVER answer questions. I summarize questions and communal uncentainty. I ignore anything that doesn't end in a question mark. I will keep my summary very short or about 250 words long"})
 
-	response = iris_llm.chat(conversation, model="openai/gpt-4o-mini")
+	response = await chat_async(conversation, model="openai/gpt-4o-mini")
 
 	# Split response into chunks if longer than 2000 characters
 	if len(response) > 2000:
@@ -423,7 +439,7 @@ async def fourthought_pool(message):
 		conversation.append({"role": "system", "content": "Keep your answer short. No longer than 250 words or a medium length paragraph unless specifically requested to do otherwise"})
 		conversation.append({"role": "user", "content": "Please give guidance based on the thread so far. Focus this thread towards a specific future based on their input"})
 
-	response = iris_llm.chat(conversation, model="openai/gpt-4o-mini")
+	response = await chat_async(conversation, model="openai/gpt-4o-mini")
 
 	# Split response into chunks if longer than 2000 characters
 	if len(response) > 2000:
@@ -469,7 +485,7 @@ async def prophecy_pool(message):
 	conversation.append({"role": "system", "content": "You have been moderating a running thread of thoughts about the future. Please aid in any tasks related to the arrow of time. If someon asks you to summarize, create a summary of thre thread and explain how the thoughts about the future are connected and give some analysis about these potential futures. If contextually relevant, feel free to share any wisdom or summarization or help relevant to the future. You also suggest predictions and ways to manifest specific futures mentioned by the group"})
 	conversation.append({"role": "assistant", "content": "I will do what I can to help the thread. I will vary my outputs and how I help regarding the future, but I will keep the focus on the future. My output will be under 300 words and I will mention the last thing said"})
 
-	response = iris_llm.chat(conversation, model="openai/gpt-4o-mini", max_tokens=500)
+	response = await chat_async(conversation, model="openai/gpt-4o-mini", max_tokens=500)
 
 	# Split response into chunks if longer than 2000 characters
 	if len(response) > 2000:
@@ -480,7 +496,7 @@ async def prophecy_pool(message):
 
 @bot.event
 async def on_ready():
-	load_training_data()
+	await asyncio.to_thread(load_training_data)
 	print("Iris is online")
 
 @bot.event
@@ -493,22 +509,7 @@ async def frankeniris(message, answer=""):
 	Queries Frankeniris
 	"""
 
-	# Get Iris One Shot Answer First
-	try:
-		iris_answer = iris_llm.complete(
-			message.content,
-			model=models["chat-iris"],
-			temperature=0.69,
-			max_tokens=222,
-			top_p=1,
-			frequency_penalty=1.5,
-			presence_penalty=1.5,
-			stop=["END"]
-		)
-		iris_answer = iris_answer.replace("###", "").strip()
-	except Exception as e:
-		print(f"Error: {e}")
-		iris_answer = ""
+	iris_answer = await asyncio.to_thread(one_shot, message.content)
 
 	if len(answer) > 0:
 		iris_answer = iris_answer + " \n\n " + answer
@@ -521,24 +522,26 @@ async def frankeniris(message, answer=""):
 	async for hist in message.channel.history(limit=50):
 		if not hist.content.startswith('/'):
 			if hist.embeds:
-				messages.append((hist.author, hist.embeds[0].description))
+				messages.append((hist.author.id, hist.embeds[0].description or ""))
 			else:
-				messages.append((hist.author.name, hist.content))
+				messages.append((hist.author.id, hist.content))
 			if len(messages) == 18:
 				break
 
 	messages.reverse()
 
 	# Construct Chat Thread for API
-	conversation = [{"role": "system", "content": "You are are a wise oracle and integrated wisdom bot named Iris. You help integrate knowledge and wisdom about the future. You read many sources and weigh them"}]
-	conversation = [{"role": "system", "content": "You are interacting with users via discord. Mostly you just serve as an interface to Cognicism and Iris the democratic langauge model. However this discord has the following commands /pullcard [intention] /ask [prompt] /channel /faq"}]
-	conversation = [{"role": "system", "content": "/pullcard pulls a card from the Iris tarot deck. If the user provides an intention the model will attempt to intpret the card. /ask prompts Iris directly without the interference of ChatGPT. Responses from /ask can be forward to the #seeds text channel. /channel channels wisdom and can be reached via the alias /c. /faq answers a frequently asked question"}]
+	conversation = [{"role": "system", "content":
+		"You are are a wise oracle and integrated wisdom bot named Iris. You help integrate knowledge and wisdom about the future. You read many sources and weigh them\n"
+		"You are interacting with users via discord. Mostly you just serve as an interface to Cognicism and Iris the democratic langauge model. However this discord has the following commands /pullcard [intention] /ask [prompt] /channel /faq\n"
+		"/pullcard pulls a card from the Iris tarot deck. If the user provides an intention the model will attempt to intpret the card. /ask prompts Iris directly without the interference of ChatGPT. Responses from /ask can be forward to the #seeds text channel. /channel channels wisdom and can be reached via the alias /c. /faq answers a frequently asked question"
+	}]
 	conversation.append({"role": "user", "content": "Whatever you say be creative in your response. Never simply summarize, always say it a unique way"})
 	conversation.append({"role": "assistant", "content": "I am speaking as a relay for Iris. Iris was made and trained by John Ash. I will answer using Iris as a guide as well as the rest of the conversation. Iris said to me " + iris_answer + " and I will take that into account in my response as best I can"})
 	text_prompt = message.content
 
 	for m in messages:
-		if m[0] == bot.user:
+		if m[0] == bot.user.id:
 			conversation.append({"role": "assistant", "content": m[1]})
 		else:
 			conversation.append({"role": "user", "content": m[1]})
@@ -550,23 +553,9 @@ async def frankeniris(message, answer=""):
 		if len(msg["content"]) > 4000:
 			 msg["content"] = "..." + msg["content"][-4000:]
 
-	# Calculate Total Length of Messages
-	total_length = sum(len(msg["content"]) for msg in conversation)
+	conversation = trim_context(conversation)
 
-	print("total_length before")
-	print(total_length)
-
-	# Check Total Length
-	if total_length > 20000:
-		# Iterate over messages in conversation in reverse order and remove them until total length is below maximum
-		while total_length > 20000 and len(conversation) > 2:  # ensure that at least 2 messages remain (the user's message and Iris's answer)
-			removed_msg = conversation.pop(1)  # remove the second message (first message after Iris's answer)
-		total_length -= len(removed_msg["content"])
-
-	print("total_length after")
-	print(total_length)
-
-	response = iris_llm.chat(
+	response = await chat_async(
 		conversation,
 		model="openai/gpt-4o-mini",
 		temperature=0.8,
@@ -610,7 +599,7 @@ async def on_message(message):
 @bot.command(aliases=['c'])
 async def channel(ctx, *, topic=""):
 
-	df = pd.read_csv('data/chat-iris.csv')
+	df = await asyncio.to_thread(pd.read_csv, 'data/chat-iris.csv')
 	prompts = df['prompt'].tolist()
 	question_pattern = r'^(.*)\?\s*$'
 	non_questions = list(filter(lambda x: isinstance(x, str) and re.match(question_pattern, x, re.IGNORECASE), prompts))
@@ -628,7 +617,7 @@ async def channel(ctx, *, topic=""):
 @bot.command()
 async def faq(ctx, *, topic=""):
 
-	df = pd.read_csv('data/chat-iris.csv')
+	df = await asyncio.to_thread(pd.read_csv, 'data/chat-iris.csv')
 	prompts = df['prompt'].tolist()
 	question_pattern = r'^(.*)\?\s*$'
 	questions = list(filter(lambda x: isinstance(x, str) and re.match(question_pattern, x, re.IGNORECASE), prompts))
@@ -647,10 +636,9 @@ async def faq(ctx, *, topic=""):
 
 	message = ctx.message
 	random_question = random.choice(question_completion_pairs)
-	embed = discord.Embed(title = "FAQ", description=random_question[0])
 	message.content = random_question[0]
 
-	await ctx.send(embed=embed)
+	await send_embed_text(ctx, "FAQ", random_question[0])
 	await frankeniris(message, answer=random_question[1])
 
 @bot.command(aliases=['in', 'inject'])
@@ -663,27 +651,13 @@ async def infuse(ctx, *, link):
 
 	if link.startswith('http'):
 	
-		# set up the browser
-		options = webdriver.ChromeOptions()
-		options.add_argument('--headless')
-		options.add_argument('--disable-gpu')
-		options.add_argument("--no-sandbox")
-		options.add_argument("--disable-dev-shm-usage")
-		driver = webdriver.Chrome(options=options)
-
-		# navigate to the page
-		driver.get(link)
-
-		# get the page source with JavaScript
-		html_content = driver.page_source
-
-		# close the browser
-		soup = BeautifulSoup(html_content, 'html.parser')
-		text = soup.get_text()
-		driver.quit()
+		text = await asyncio.to_thread(extract_text_from_url, link)
 
 		# chunk text
 		text_chunks = chunk_text(text)
+		if not text_chunks:
+			await ctx.send("Source contains no extractable text.")
+			return
 
 		# Send each text chunk to OpenAI for processing with progress bar
 		conversation = [{"role": "system", "content": "You are a parser and summarizer that takes in noisy text scraped from the internet or pdfs and summarizes it into a paragraph"}]
@@ -699,20 +673,20 @@ async def infuse(ctx, *, link):
 			truncated_convo.append({"role": "assistant", "content": "There is a parser and summarizer that is designed to take in noisy text scraped from the internet or PDFs and summarize it into a clean paragraph. The parser includes a prompt for the user to summarize the content of a specific web link and inject it into a chat stream for further analysis"})
 			truncated_convo += conversation[-3:]
 
-			response = iris_llm.chat_completion(
+			response = await chat_completion_async(
 				truncated_convo,
 				model="openai/gpt-4o-mini",
 				temperature=0.75,
 			)
 
 			# Extract the claims from the response and add them to the claims array
-			for choice in response.choices:
-				assistant_message = choice.message.content
+			for assistant_message in iris_llm.response_texts(response):
 				conversation.append({"role": "assistant", "content": assistant_message})
 				infusion += [(c.strip(), text_chunk) for c in assistant_message.split("\n") if c.strip()]
 
 		for i in infusion:
-			await ctx.send(i[0] + "\n\n")
+			for offset in range(0, len(i[0]), 2000):
+				await ctx.send(i[0][offset:offset + 2000])
 
 @bot.command(aliases=['ask'])
 async def iris(ctx, *, thought):
@@ -729,7 +703,7 @@ async def iris(ctx, *, thought):
 
 	thought_prompt = thought + "\n\n###\n\n"
 
-	text = iris_llm.complete(
+	text = await complete_async(
 		thought_prompt,
 		model=models["chat-iris"],
 		temperature=0.69,
@@ -740,9 +714,7 @@ async def iris(ctx, *, thought):
 		stop=["END"]
 	)
 	text = text.replace("###", "").strip()
-	embed = discord.Embed(title = "", description=f"**Prompt**\n{thought}\n\n**Response**\n{text}")
-
-	await ctx.send(embed=embed)
+	await send_embed_text(ctx, "", f"**Prompt**\n{thought}\n\n**Response**\n{text}")
 
 	# Send Clarification and Share UI
 	view, modal = response_view(modal_text="Write your clarification here", modal_label="Clarification", button_label="feedback")
@@ -758,9 +730,9 @@ async def iris(ctx, *, thought):
 
 	prompt = thought + "\n\n" + text
 
-	if modal.answer.value is not None:
-		training_data.loc[len(training_data.index)] = [prompt, modal.answer.value, ctx.message.author.name] 
-		training_data.to_csv('iris_training-data.csv', encoding='utf-8', index=False)
+	if modal.submission is not None:
+		user_id, name, completion = modal.submission
+		await asyncio.to_thread(append_training_data, prompt, completion, f"{user_id}:{name}")
 
 @bot.command()
 async def davinci(ctx, *, thought):
@@ -777,23 +749,16 @@ async def davinci(ctx, *, thought):
 
 	thought_prompt = thought
 
-	text = iris_llm.complete(
-		thought_prompt,
-		model="openai/gpt-4o-mini",
-		temperature=0.69,
-		max_tokens=222,
-		top_p=1,
-		frequency_penalty=1.8,
-		presence_penalty=1.5,
-		stop=["END"]
-	).strip()
+	text = await complete_async(
+		thought_prompt, model="openai/gpt-4o-mini", temperature=0.69, max_tokens=222,
+		top_p=1, frequency_penalty=1.8, presence_penalty=1.5, stop=["END"],
+	)
 
 	view = View()
-	embed = discord.Embed(title = "", description=f"**Prompt**\n{thought}\n\n**Response**\n{text}")
 	share_button = group_share(thought=text, prompt=thought_prompt, prompter=ctx.message.author.name)
 	view.add_item(share_button)
 
-	await ctx.send(embed=embed)
+	await send_embed_text(ctx, "", f"**Prompt**\n{thought}\n\n**Response**\n{text}")
 	await ctx.send(view=view)
 
 @bot.command()
@@ -808,8 +773,10 @@ async def claim(ctx, *, thought):
 	prompt = "Share something about in the general latent space of Cognicism"
 
 	if thought is not None:
-		training_data.loc[len(training_data.index)] = [prompt, thought, ctx.message.author.name] 
-		training_data.to_csv('iris_training-data.csv', encoding='utf-8', index=False)
+		await asyncio.to_thread(
+			append_training_data, prompt, thought,
+			f"{ctx.message.author.id}:{ctx.message.author.name}",
+		)
 
 	await ctx.send("Attestation saved")
 
@@ -828,19 +795,15 @@ async def pullcard(ctx, *, intention=""):
 	url = ""
 
 	try:
-		for page in airtable.iterate():
-			for record in page:
-				if record["fields"]["Card Name"] == card_name:
-					if "All images" in record["fields"]:
-						url = record["fields"]["All images"][0]["url"]
-	except:
+		url = await asyncio.to_thread(card_image, card_name)
+	except Exception:
 		url = ""
 
 	# Make and Send Card
-	embed = discord.Embed(title = card_name, description = f"**Description**\n{description}")
-	if with_intention: embed.add_field(name="Intention", value=intention, inline=False)
-	if len(url) > 0: embed.set_image(url=url)
-	await ctx.send(embed=embed)
+	card_text = f"**Description**\n{description}"
+	if with_intention:
+		card_text += f"\n\n**Intention**\n{intention}"
+	await send_embed_text(ctx, card_name, card_text, image_url=url)
 
 	# Make and Send Card Analysis
 	if with_intention:
@@ -850,18 +813,11 @@ async def pullcard(ctx, *, intention=""):
 		prompt += "First explain what the intention: '" + intention + "' means, then answer how this intention connects to the card. If it's a question the intention is to know the answer. Write a few sentences and mention the intention directly. Do NOT summarize or repeat the card. Be creative in your interpretation. If the intention is one word talk more about the intention in detail"
 		prompt += "\n\n"
 
-		text = iris_llm.complete(
-			prompt,
-			model="openai/gpt-4o-mini",
-			temperature=0.8,
-			max_tokens=222,
-			top_p=1,
-			frequency_penalty=2,
-			presence_penalty=2,
-			stop=["END"]
-		).strip()
-		embed_b = discord.Embed(title = "One Interpretation (beta)", description=text)
-		await ctx.send(embed=embed_b)
+		text = await complete_async(
+			prompt, model="openai/gpt-4o-mini", temperature=0.8, max_tokens=222,
+			top_p=1, frequency_penalty=2, presence_penalty=2, stop=["END"],
+		)
+		await send_embed_text(ctx, "One Interpretation (beta)", text)
 	
 @bot.command(name="ask_group", description="Ask group a question and auto-summarize")
 async def ask_group(ctx, *, question=""):
@@ -893,14 +849,12 @@ async def ask_group(ctx, *, question=""):
 	views = []
 	t_embed = discord.Embed(title = "Time Limit", description = f"Please reply within 45 minutes of receipt")
 	i_url = "https://media.discordapp.net/attachments/989662771329269893/1019641048407998464/chrome_Drbki2l0Qq.png"
-	c_embed = discord.Embed(title="Confluence Experiment", description = question)
-	c_embed.set_image(url=i_url)
 
 	# Message Users
 	for person in users:
 		view, modal = response_view(modal_text=question)
 		try: 
-			await person.send(embed=c_embed)
+			await send_embed_text(person, "Confluence Experiment", question, image_url=i_url)
 			await person.send(view=view)
 			await person.send(embed=t_embed)
 		except:
@@ -913,7 +867,8 @@ async def ask_group(ctx, *, question=""):
 
 	for response in responses:
 		await response.wait()
-		all_text.append(response.answer.value)
+		if response.submission is not None:
+			all_text.append(response.submission[2])
 
 	joined_answers = ""
 
@@ -926,42 +881,27 @@ async def ask_group(ctx, *, question=""):
 		await ctx.send(embed=j_embed)
 		return
 
-	if len(responses) == 1:
-		k_embed = discord.Embed(title = "One Response", description = all_text[0])
-		await ctx.send(embed=k_embed)
+	if len(all_text) == 1:
+		await send_embed_text(ctx, "One Response", all_text[0])
 		return
 
-	# Chunk Answers
-	prompts = []
-	answer_chunks = textwrap.wrap(joined_answers, 1750)
-
-	for chunk in answer_chunks:
-		prompts.append(pool_prompt(question, joined_answers))
+	prompts = group_prompts(question, joined_answers)
 
 	# Query OpenAI
 	response_text = ""
 
 	for prompt in prompts:
-		response_text += iris_llm.complete(
-			prompt,
-			model="openai/gpt-4o-mini",
-			temperature=0.6,
-			max_tokens=222,
-			top_p=1,
-			frequency_penalty=1.5,
-			presence_penalty=1,
-			stop=["END"]
-		).strip() + "\n\n"
+		response_text += await complete_async(
+			prompt, model="openai/gpt-4o-mini", temperature=0.6, max_tokens=222,
+			top_p=1, frequency_penalty=1.5, presence_penalty=1, stop=["END"],
+		) + "\n\n"
 	
-	# Send Results to People
-	a_embed = discord.Embed(title = "Responses", description = f"{joined_answers}")
-	embed = discord.Embed(title = "Consensus (beta)", description = f"**Question**\n{question}\n\n**Consensus**\n{response_text}")
-
+	# Deliver every response and result in bounded embeds.
 	for person in users:
 		try:
-			await person.send("Responses", embed=a_embed)
-			await person.send("Consensus", embed=embed)
-		except:
+			await send_embed_text(person, "Responses", joined_answers)
+			await send_embed_text(person, "Consensus (beta)", f"**Question**\n{question}\n\n**Consensus**\n{response_text}")
+		except Exception:
 			continue
 
 	# Send a Redo Option
@@ -969,4 +909,10 @@ async def ask_group(ctx, *, question=""):
 		r_view = redo_view(ctx, prompt, question)
 		await ctx.send(view=r_view)
 
-bot.run(discord_key)
+def main():
+	setup_integrations()
+	bot.run(os.environ["DISCORD_BOT_KEY"])
+
+
+if __name__ == "__main__":
+	main()

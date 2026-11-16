@@ -4,6 +4,10 @@ import csv
 import sys
 import time
 import random
+import hashlib
+import json
+import tempfile
+from pathlib import Path
 import pandas as pd
 from datetime import datetime
 from itertools import islice
@@ -11,6 +15,175 @@ import iris_llm
 
 # Model calls go through iris_llm (OpenRouter; OPENROUTER_API_KEY, falling back
 # to OPENAI_API_KEY).
+
+SUMMARY_MODEL = "openai/gpt-4o-mini"
+CACHE_COLUMNS = ("Summary", "Binding", "Context")
+CACHE_POLICY = {
+    "privacy": "existing labelled remote processing; owner decision pending",
+    "weekly": "existing W-MON grouping and labels; owner decision pending",
+    "monthly": "existing allocation by weekly label",
+    "timestamps": "existing Pacific localization; ambiguity decision pending",
+}
+
+
+class SummaryRequestError(RuntimeError):
+    """A finite summary request budget was exhausted."""
+
+
+class SummaryCacheError(ValueError):
+    """A stored summary has no valid content/provenance binding."""
+
+
+def _digest(value):
+    encoded = json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _file_digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _atomic_csv(frame, path):
+    path = Path(path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", dir=path.parent, delete=False) as handle:
+            temporary = Path(handle.name)
+            frame.to_csv(handle, index=False)
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _load_cache(path, period_column):
+    columns = [period_column, *CACHE_COLUMNS]
+    if not Path(path).exists():
+        return pd.DataFrame(columns=columns)
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if list(frame.columns) != columns:
+        raise SummaryCacheError(f"{path}: unbound summary cache; preserve/archive it before creating a new bound cache")
+    if frame[period_column].duplicated().any():
+        raise SummaryCacheError(f"{path}: duplicate summary period")
+    expected_stage = {"Date": "daily", "Week_Start_Date": "weekly", "Month_Year": "monthly"}.get(period_column)
+    for _, row in frame.iterrows():
+        try:
+            context = json.loads(row["Context"])
+            valid = (
+                isinstance(context, dict)
+                and set(context) == {
+                    "schema", "stage", "period", "source_sha256", "program_sha256",
+                    "model", "policy", "prompt_time", "requests", "summary_sha256",
+                }
+                and context.get("schema") == "iris-summary/v1"
+                and context.get("period") == row[period_column]
+                and isinstance(context.get("policy"), dict)
+                and all(isinstance(context.get(key), str) and context[key] for key in (
+                    "stage", "source_sha256", "program_sha256", "model", "summary_sha256",
+                ))
+                and isinstance(context.get("requests"), list) and bool(context["requests"])
+                and all(
+                    isinstance(request, dict) and set(request) == {"input_sha256", "output_sha256"}
+                    and all(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) for value in request.values())
+                    for request in context["requests"]
+                )
+                and row["Binding"] == _digest(context)
+                and context.get("summary_sha256") == _digest(row["Summary"])
+                and bool(row["Summary"].strip())
+            )
+            valid = valid and (
+                context["stage"] == expected_stage and bool(context["policy"])
+                and all(re.fullmatch(r"[0-9a-f]{64}", context[key]) for key in (
+                    "source_sha256", "program_sha256", "summary_sha256",
+                ))
+            )
+            if valid and expected_stage == "daily":
+                datetime.strptime(context["prompt_time"], "%Y-%m-%d %H:%M:%S")
+            elif valid:
+                valid = context["prompt_time"] is None
+        except (ValueError, TypeError):
+            valid = False
+        if not valid:
+            raise SummaryCacheError(f"{path}: invalid summary binding")
+    return frame
+
+
+def _summary_frame(path, period_column):
+    frame = _load_cache(path, period_column)
+    if not Path(path).exists():
+        raise FileNotFoundError(path)
+    frame[period_column] = pd.to_datetime(frame[period_column])
+    return frame
+
+
+def _cache_base(stage, period, frame):
+    return {
+        "schema": "iris-summary/v1", "stage": stage, "period": period,
+        "source_sha256": _digest({
+            "data": frame.to_json(orient="split", date_format="iso", date_unit="ns", force_ascii=False),
+            "dtypes": [str(dtype) for dtype in frame.dtypes],
+        }),
+        "program_sha256": _file_digest(__file__),
+        "model": SUMMARY_MODEL, "policy": dict(CACHE_POLICY),
+    }
+
+
+def _cache_hit(cache, period_column, period, base):
+    rows = cache.loc[cache[period_column] == period]
+    if rows.empty:
+        return False
+    context = json.loads(rows.iloc[0]["Context"])
+    return all(context.get(key) == value for key, value in base.items())
+
+
+def _store_summary(cache, path, period_column, period, summary, base, requests, prompt_time=None):
+    if not isinstance(summary, str) or not summary.strip():
+        raise iris_llm.ModelOutputError("Summary contains no usable text")
+    context = {
+        **base, "prompt_time": prompt_time, "requests": requests,
+        "summary_sha256": _digest(summary),
+    }
+    row = {
+        period_column: period, "Summary": summary,
+        "Binding": _digest(context), "Context": json.dumps(context, sort_keys=True, ensure_ascii=False),
+    }
+    updated = pd.concat(
+        [cache.loc[cache[period_column] != period], pd.DataFrame([row])], ignore_index=True
+    )
+    _atomic_csv(updated, path)
+    return updated
+
+
+def _finish_cache(cache, path, period_column, active_periods):
+    current = cache.loc[cache[period_column].isin(active_periods)]
+    if not Path(path).exists() or len(current) != len(cache):
+        _atomic_csv(current, path)
+
+
+def _cached_request(conversation, requests):
+    summary = create_summary(conversation)
+    requests.append({"input_sha256": _digest(conversation), "output_sha256": _digest(summary)})
+    return summary
+
+
+def _write_training_pairs(path, pairs, source, seed):
+    _atomic_csv(pd.DataFrame(pairs, columns=["Prompt", "Completion"]), path)
+    provenance = {
+        "schema": "iris-training-pairs/v1", "seed": seed, "rows": len(pairs),
+        "source_sha256": _file_digest(source), "program_sha256": _file_digest(__file__),
+        "output_sha256": _file_digest(path),
+    }
+    metadata_path = Path(str(path) + ".provenance.json")
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=metadata_path.parent, delete=False) as handle:
+            temporary = Path(handle.name)
+            json.dump(provenance, handle, sort_keys=True, indent=2)
+            handle.write("\n")
+        temporary.replace(metadata_path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 def load_and_preprocess_csv(csv_file):
     # This function loads data from a CSV file and preprocesses it to extract 'Positive' and 'Negative' values.
@@ -35,22 +208,29 @@ def load_and_preprocess_csv(csv_file):
 
     return df
 
-def create_summary(conversation):
-    # This function uses the GPT-4 model to generate a summary or response based on the input conversation.
-    # It handles rate limit errors and timeouts by retrying the request after a short delay.
-
-    while True:
+def create_summary(conversation, *, max_attempts=3, retry_delay=5, timeout=60):
+    if max_attempts < 1 or retry_delay < 0 or timeout <= 0:
+        raise ValueError("summary request limits must be positive")
+    if not conversation or not any(
+        message.get("role") == "user" and isinstance(message.get("content"), str)
+        and message["content"].strip() for message in conversation
+    ):
+        raise ValueError("Cannot request a summary without input text")
+    for attempt in range(max_attempts):
         try:
-            return iris_llm.chat(conversation, model="openai/gpt-4o-mini")
-        except iris_llm.RateLimitError:
-            print("Rate limit error encountered. Retrying in 5 seconds...")
-            time.sleep(5)
-        except iris_llm.APITimeoutError:
-            print("Request timed out. Retrying...")
+            return iris_llm.chat(conversation, model=SUMMARY_MODEL, timeout=timeout)
+        except (iris_llm.RateLimitError, iris_llm.APITimeoutError) as exc:
+            if attempt + 1 == max_attempts:
+                raise SummaryRequestError(f"Summary request exhausted {max_attempts} application attempts") from exc
+            time.sleep(retry_delay)
 
 def split_text_into_chunks(text, max_chunk_size=4000):
     # This function splits the input text into smaller chunks, each with a maximum size of max_chunk_size characters.
     # It returns a list of text chunks, ensuring that the text is evenly distributed across the chunks.
+    if max_chunk_size < 1:
+        raise ValueError("max_chunk_size must be positive")
+    if not text:
+        return []
 
     # Calculate the number of chunks needed to evenly distribute the text
     num_chunks = max(1, (len(text) + max_chunk_size - 1) // max_chunk_size)
@@ -67,27 +247,32 @@ def create_daily_summaries(df):
     # This function will create summaries of thoughts, reflections, questions, and predictions
     # for each day, providing a brief overview of the main topics discussed on that day.
 
+    if not df.empty:
+        content = df.apply(
+            lambda row: row.get("Thought") if row.get("Platform") == "fourthought" else row.get("full_text"),
+            axis=1,
+        )
+        df = df.loc[content.map(lambda value: isinstance(value, str) and bool(value.strip()))]
     # Group the data by date (daily) and include all columns for each group
-    df.set_index('Post date', inplace=True)
+    df = df.set_index('Post date')
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index)
     daily_groups = df.groupby(df.index.date)
 
     # islice(daily_groups, 20)
 
-    # Load daily_summaries.csv if it exists, otherwise create a new DataFrame and save it
-    if os.path.isfile('daily_summaries.csv'):
-        summary_df = pd.read_csv('daily_summaries.csv', parse_dates=['Date'])
-    else:
-        summary_df = pd.DataFrame(columns=['Date', 'Summary'])
-        summary_df.to_csv('daily_summaries.csv', index=False)
-
+    summary_df = _load_cache("daily_summaries.csv", "Date")
+    active_periods = set()
     for day_date, day in daily_groups:
-        
-        # Check if there's already a cached summary for the day
-        cached_summary = summary_df.loc[summary_df['Date'] == day_date.strftime('%Y-%m-%d')]
-
-        if not cached_summary.empty:
-            # print(f"Using cached summary for {day_date.strftime('%Y-%m-%d')}: {cached_summary['Summary'].values[0]}")
+        if day.empty:
             continue
+        period = day_date.strftime("%Y-%m-%d")
+        active_periods.add(period)
+        base = _cache_base("daily", period, day)
+        if _cache_hit(summary_df, "Date", period, base):
+            continue
+        requests = []
+        prompt_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         truth_scale = "0: \"100 percent certain false\"\n25: \"Moderate certainty of falsity\"\n50: \"Complete uncertainty\"\n75: \"Moderate certainty of truth\"\n100: \"100 percent certain true\""
 
@@ -99,7 +284,7 @@ def create_daily_summaries(df):
             {"role": "system", "content": "Truth is measured on a scale from 0 to 100. In the absence of any votes, no certainty level has been provided. Here is the scale: " + truth_scale},
             {"role": "system", "content": "Sentiment is calculated from good votes and bad votes and is on a scale of -1, 0, 1 with 0 indicating neutrality"},
             {"role": "system", "content": "You are receiving timestamps and can make inferences about the length of time between thoughts as to whether they're connected"},
-            {"role": "system", "content": "The thoughts you are receiving are from the past. The current date and time is: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S")},
+            {"role": "system", "content": "The thoughts you are receiving are from the past. The current date and time is: " + prompt_time},
             {"role": "system", "content": "Thoughts with the pattern #trackable: [value] are repeating values that a user is tracking. If there is no unit usually the trackable is on a scale of ten. #mood is an similar to American grade scaling with a 7.5 incidating an average mood"}
         ]
 
@@ -161,24 +346,24 @@ def create_daily_summaries(df):
             for chunk in text_chunks:
                 sub_conv = conversation[:]
                 sub_conv.append({"role": "user", "content": "You are summarizing part of a day. Please state the range of the day (TIME to TIME) that you're summarizing and then summarize what this speaker was thinking about during this section of the day (and reference the period of the day TIME to TIME) into a paragraph story in relation to their place in time. Reference anything in the dialectic helpful towards telling that story but don't make anything up. Be detailed and reference every thought: " + chunk})
-                response = create_summary(sub_conv)
+                response = _cached_request(sub_conv, requests)
                 summaries.append(response)
 
             summary_text = '\n\n'.join([summary.strip() for summary in summaries])
             sub_conv = [{"role": "system", "content": "You stitch summaries about parts of a day into one. You remove line breaks and make minor edits to make multiple sections into one. You mostly copy text"}]
             sub_conv.append({"role": "user", "content": "Write this as one paragraph with no line breaks. Copy everything and miss nothing: " + summary_text})
-            response = create_summary(sub_conv)
+            response = _cached_request(sub_conv, requests)
 
         else:
             conversation.append({"role": "user", "content": "Please summarize what this speaker was thinking about into a story in relation to their place in time. Reference anything in the dialectic helpful towards telling that story but don't make anything up. Be detailed and reference every thought: " + text})
-            response = create_summary(conversation)
+            response = _cached_request(conversation, requests)
 
-        # Append the new summary to the CSV file
-        with open('daily_summaries.csv', 'a', newline='') as f:
-            csv_writer = csv.writer(f)
-            csv_writer.writerow([day_date.strftime('%Y-%m-%d'), response])
-
+        summary_df = _store_summary(
+            summary_df, "daily_summaries.csv", "Date", period,
+            response, base, requests, prompt_time,
+        )
         print(response + "\n")
+    _finish_cache(summary_df, "daily_summaries.csv", "Date", active_periods)
 
 def create_weekly_summaries():
     # This function will aggregate and summarize the daily summaries for each week,
@@ -197,25 +382,21 @@ def create_weekly_summaries():
 
         return conversation
 
-    daily_summaries_df = pd.read_csv('daily_summaries.csv', parse_dates=['Date'])
+    daily_summaries_df = _summary_frame('daily_summaries.csv', 'Date')
     daily_summaries_df.set_index('Date', inplace=True)
     weekly_groups = daily_summaries_df.resample('W-MON')
 
-    # Load weekly_summaries.csv if it exists, otherwise create a new DataFrame and save it
-    if os.path.isfile('weekly_summaries.csv'):
-        weekly_summaries_df = pd.read_csv('weekly_summaries.csv', parse_dates=['Week_Start_Date'])
-    else:
-        weekly_summaries_df = pd.DataFrame(columns=['Week_Start_Date', 'Summary'])
-        weekly_summaries_df.to_csv('weekly_summaries.csv', index=False)
-
-    # Loop through each week
+    weekly_summaries_df = _load_cache("weekly_summaries.csv", "Week_Start_Date")
+    active_periods = set()
     for week_start_date, week in weekly_groups:
-
-        # Check Cache
-        cached_summary = weekly_summaries_df.loc[weekly_summaries_df['Week_Start_Date'] == week_start_date.strftime('%Y-%m-%d')]
-
-        if not cached_summary.empty:
+        if week.empty or not week["Summary"].astype(str).str.strip().any():
             continue
+        period = week_start_date.strftime("%Y-%m-%d")
+        active_periods.add(period)
+        base = _cache_base("weekly", period, week)
+        if _cache_hit(weekly_summaries_df, "Week_Start_Date", period, base):
+            continue
+        requests = []
 
         # Prepend the week start date to the list of summaries
         week = week.sort_index()
@@ -239,18 +420,18 @@ def create_weekly_summaries():
 
             for chunk in text_chunks:
                 sub_conv = generate_conversation(chunk, is_part=True)
-                summary_part = create_summary(sub_conv)
+                summary_part = _cached_request(sub_conv, requests)
                 summaries.append(summary_part)
 
             summary_text = ' '.join([summary.strip() for summary in summaries])
             sub_conv = [{"role": "system", "content": "You stitch summaries about parts of a week into one. You make minor edits to make multiple sections into one."}]
             sub_conv.append({"role": "user", "content": "Write this as one integrated piece. Copy everything and miss nothing: " + summary_text})
 
-            summary = create_summary(sub_conv)
+            summary = _cached_request(sub_conv, requests)
 
         else:
             conversation = generate_conversation(week_text)
-            summary = create_summary(conversation)
+            summary = _cached_request(conversation, requests)
 
         # Get the date of the week in the desired format
         week_date_str = week_start_date.strftime('%B %d, %Y')
@@ -261,13 +442,13 @@ def create_weekly_summaries():
         # Prepend the date and two newline characters to the summary
         summary = week_date_str + '\n\n' + summary
 
-        # Append the new summary to the CSV file
-        with open('weekly_summaries.csv', 'a', newline='') as f:
-            csv_writer = csv.writer(f)
-            csv_writer.writerow([week_start_date.strftime('%Y-%m-%d'), summary])
-
+        weekly_summaries_df = _store_summary(
+            weekly_summaries_df, "weekly_summaries.csv", "Week_Start_Date",
+            period, summary, base, requests,
+        )
         print("---\n\n")
         print(summary)
+    _finish_cache(weekly_summaries_df, "weekly_summaries.csv", "Week_Start_Date", active_periods)
 
 def create_monthly_summaries():
     # This function will aggregate and summarize the weekly summaries for each month,
@@ -326,27 +507,23 @@ def create_monthly_summaries():
         return conversation
 
     # Load weekly_summaries.csv into a DataFrame
-    weekly_summaries_df = pd.read_csv('weekly_summaries.csv', parse_dates=['Week_Start_Date'])
+    weekly_summaries_df = _summary_frame('weekly_summaries.csv', 'Week_Start_Date')
     weekly_summaries_df.set_index('Week_Start_Date', inplace=True)
     
     # Group the weekly summaries by month
-    monthly_groups = weekly_summaries_df.resample('M')
+    monthly_groups = weekly_summaries_df.resample(pd.offsets.MonthEnd())
 
-    # Load monthly_summaries.csv if it exists, otherwise create a new DataFrame and save it
-    if os.path.isfile('monthly_summaries.csv'):
-        monthly_summaries_df = pd.read_csv('monthly_summaries.csv', parse_dates=['Month_Year'])
-    else:
-        monthly_summaries_df = pd.DataFrame(columns=['Month_Year', 'Summary'])
-        monthly_summaries_df.to_csv('monthly_summaries.csv', index=False)
-
-    # Loop through each month
+    monthly_summaries_df = _load_cache("monthly_summaries.csv", "Month_Year")
+    active_periods = set()
     for month_start_date, month in monthly_groups:
-
-        # Check Cache
-        cached_summary = monthly_summaries_df.loc[monthly_summaries_df['Month_Year'] == month_start_date.strftime('%B %Y')]
-
-        if not cached_summary.empty:
+        if month.empty or not month["Summary"].astype(str).str.strip().any():
             continue
+        period = month_start_date.strftime("%B %Y")
+        active_periods.add(period)
+        base = _cache_base("monthly", period, month)
+        if _cache_hit(monthly_summaries_df, "Month_Year", period, base):
+            continue
+        requests = []
 
         # Prepend the month start date to the list of summaries
         month = month.sort_index()
@@ -370,14 +547,14 @@ def create_monthly_summaries():
 
             for chunk in text_chunks:
                 sub_conv = generate_monthly_conversation(month_start_date, chunk, is_part=True)
-                summary_part = create_summary(sub_conv)
+                summary_part = _cached_request(sub_conv, requests)
                 summaries.append(summary_part)
 
             summary_text = ' '.join([summary.strip() for summary in summaries])
             sub_conv = [{"role": "system", "content": "You stitch summaries about parts of a month into one. You indicate the month and then make minor edits to make multiple sections into one."}]
             sub_conv.append({"role": "user", "content": "Write this as one integrated piece. Copy everything and miss nothing: " + summary_text})
 
-            summary = create_summary(sub_conv)
+            summary = _cached_request(sub_conv, requests)
 
         else: 
 
@@ -387,7 +564,7 @@ def create_monthly_summaries():
 
             # Generate conversation and summary for the month
             conversation = generate_monthly_conversation(month_start_date, month_text, is_part=False)
-            summary = create_summary(conversation)
+            summary = _cached_request(conversation, requests)
 
         # Get the date of the month in the desired format
         month_date_str = month_start_date.strftime('%B %Y')
@@ -398,20 +575,21 @@ def create_monthly_summaries():
         # Prepend the date and two newline characters to the summary
         summary = month_date_str + '\n\n' + summary
 
-        # Append the new summary to the CSV file
-        with open('monthly_summaries.csv', 'a', newline='') as f:
-            csv_writer = csv.writer(f)
-            csv_writer.writerow([month_start_date.strftime('%B %Y'), summary])
-
+        monthly_summaries_df = _store_summary(
+            monthly_summaries_df, "monthly_summaries.csv", "Month_Year",
+            period, summary, base, requests,
+        )
         print("---\n\n")
         print(summary)
+    _finish_cache(monthly_summaries_df, "monthly_summaries.csv", "Month_Year", active_periods)
 
-def construct_daily_training_data():
+def construct_daily_training_data(*, seed=0):
     # This function constructs training data for GPT from multiple sources of summaries and thoughts.
     # It preprocesses the data to create "prompts" and "completions" for training GPT models.
 
     # Load the daily_summaries.csv file into a DataFrame
-    daily_summaries_df = pd.read_csv('daily_summaries.csv', parse_dates=['Date'])
+    daily_summaries_df = _summary_frame('daily_summaries.csv', 'Date')
+    rng = random.Random(seed)
 
     # Define an array of prompt questions
     prompt_questions = [
@@ -442,13 +620,13 @@ def construct_daily_training_data():
         "%B %d, %Y",  # January 01, 2022
         "%m/%d/%Y",   # 01/01/2022
         "%d %b %Y",   # 01 Jan 2022
-        "%A, %B %d",  # Sunday, January 01
+        "%A, %B %d, %Y",
         "%d %B %Y",   # 01 January 2022
         "%d-%m-%Y",   # 01-01-2022
         "%Y-%m-%d",   # 2022-01-01
         "%b %d, %Y",  # Jan 01, 2022
         "%d %b, %Y",  # 01 Jan, 2022
-        "%A, %d %B"   # Sunday, 01 January
+        "%A, %d %B %Y",
     ]
 
     # Create an empty list to store the final prompts
@@ -461,8 +639,8 @@ def construct_daily_training_data():
         summary = row['Summary']
         
         # Randomly select a prompt question and a date format
-        prompt_question = random.choice(prompt_questions)
-        date_format = random.choice(date_formats)
+        prompt_question = rng.choice(prompt_questions)
+        date_format = rng.choice(date_formats)
         
         # Format the date using the selected date format
         formatted_date = date.strftime(date_format)
@@ -473,22 +651,12 @@ def construct_daily_training_data():
         # Append the final prompt and the corresponding summary (completion) to the final_prompts list
         final_prompts.append((final_prompt, summary))
 
-    # Open the output file in write mode
-    with open("temporal_iris.csv", 'w', newline='', encoding='utf-8') as csvfile:
+    _write_training_pairs("temporal_iris.csv", final_prompts, "daily_summaries.csv", seed)
+    return final_prompts
 
-        # Create a CSV writer object
-        csv_writer = csv.writer(csvfile)
-        
-        # Write the header row to the CSV file
-        csv_writer.writerow(['Prompt', 'Completion'])
-        
-        # Write each prompt and completion pair to the CSV file
-        for prompt, completion in final_prompts:
-            csv_writer.writerow([prompt, completion])
-
-def construct_weekly_training_data():
-    # Load weekly_summaries.csv into a DataFrame
-    weekly_summaries_df = pd.read_csv('weekly_summaries.csv', parse_dates=['Week_Start_Date'])
+def construct_weekly_training_data(*, seed=0):
+    weekly_summaries_df = _summary_frame('weekly_summaries.csv', 'Week_Start_Date')
+    rng = random.Random(seed)
     
     # Define an array of question prompts for weekly summaries
     prompt_questions = [
@@ -531,14 +699,15 @@ def construct_weekly_training_data():
         month_name = week_start_date.strftime('%B')
         
         # Randomly select a prompt question
-        prompt_question = random.choice(prompt_questions)
+        prompt_question = rng.choice(prompt_questions)
         
         # Check if the prompt question contains placeholders for week ordinal and month name
         if '{week_ordinal}' in prompt_question and '{month_name}' in prompt_question:
             final_prompt = prompt_question.format(week_ordinal=week_ordinal, month_name=month_name)
+            final_prompt += f" [weekly label: {week_start_date:%Y-%m-%d}]"
         else:
             # Randomly select a date format
-            date_format = random.choice(date_formats)
+            date_format = rng.choice(date_formats)
             # Format the date using the selected date format
             formatted_date = week_start_date.strftime(date_format)
             # Create the final prompt by concatenating the prompt question and the formatted date
@@ -547,25 +716,12 @@ def construct_weekly_training_data():
         # Append the final prompt and the corresponding summary (completion) to the final_prompts list
         final_prompts.append((final_prompt, summary))
 
-    # Open the output file in write mode
-    with open("weekly_iris.csv", 'w', newline='', encoding='utf-8') as csvfile:
-
-        # Create a CSV writer object
-        csv_writer = csv.writer(csvfile)
-        
-        # Write the header row to the CSV file
-        csv_writer.writerow(['Prompt', 'Completion'])
-        
-        # Write each prompt and completion pair to the CSV file
-        for prompt, completion in final_prompts:
-            csv_writer.writerow([prompt, completion])
-
-    
+    _write_training_pairs("weekly_iris.csv", final_prompts, "weekly_summaries.csv", seed)
     return final_prompts
 
-def construct_monthly_training_data():
-    # Load the monthly_summaries.csv file into a DataFrame
-    monthly_summaries_df = pd.read_csv('monthly_summaries.csv', parse_dates=['Month_Year'])
+def construct_monthly_training_data(*, seed=0):
+    monthly_summaries_df = _summary_frame('monthly_summaries.csv', 'Month_Year')
+    rng = random.Random(seed)
     
     # Define an array of question prompts for monthly summaries
     prompt_questions = [
@@ -596,8 +752,8 @@ def construct_monthly_training_data():
         summary = row['Summary']
         
         # Randomly select a prompt question and a date format
-        prompt_question = random.choice(prompt_questions)
-        date_format = random.choice(date_formats)
+        prompt_question = rng.choice(prompt_questions)
+        date_format = rng.choice(date_formats)
         
         # Format the date using the selected date format
         formatted_date = month_year.strftime(date_format)
@@ -608,19 +764,7 @@ def construct_monthly_training_data():
         # Append the final prompt and the corresponding summary (completion) to the final_prompts list
         final_prompts.append((final_prompt, summary))
     
-    # Open the output file in write mode
-    with open("monthly_iris.csv", 'w', newline='', encoding='utf-8') as csvfile:
-
-        # Create a CSV writer object
-        csv_writer = csv.writer(csvfile)
-        
-        # Write the header row to the CSV file
-        csv_writer.writerow(['Prompt', 'Completion'])
-        
-        # Write each prompt and completion pair to the CSV file
-        for prompt, completion in final_prompts:
-            csv_writer.writerow([prompt, completion])
-    
+    _write_training_pairs("monthly_iris.csv", final_prompts, "monthly_summaries.csv", seed)
     return final_prompts
 
 def create_seasonal_summaries():
@@ -628,7 +772,7 @@ def create_seasonal_summaries():
     # providing an overview of the key trends and patterns observed during that period.
 
     # Load monthly_summaries.csv into a DataFrame
-    monthly_summaries_df = pd.read_csv('monthly_summaries.csv', parse_dates=['Month_Year'])
+    monthly_summaries_df = _summary_frame('monthly_summaries.csv', 'Month_Year')
     monthly_summaries_df.set_index('Month_Year', inplace=True)
 
     # Define custom date ranges for each season based on approximate equinoxes and solstices
@@ -647,6 +791,8 @@ def create_seasonal_summaries():
 
         # Apply the mask to the DataFrame to get the data for the current season
         season_data = monthly_summaries_df[mask]
+        if season_data.empty or not season_data["Summary"].astype(str).str.strip().any():
+            continue
 
         # Generate summary for the current season
         season_text = f"Season of {season}:\n\n" + '\n\n'.join(season_data['Summary'].tolist())
@@ -722,7 +868,9 @@ def load_merged_data(fourthought_path='prophet_thought_dump_ALL_THOUGHTS_2023.cs
     df_tweets.drop(columns=['lang'], inplace=True)
 
     # Convert 'Post date' column to datetime in df_tweets
-    df_tweets['Post date'] = pd.to_datetime(df_tweets['Post date'], format='%a %b %d %H:%M:%S %z %Y').dt.tz_convert('US/Pacific')
+    df_tweets['Post date'] = pd.to_datetime(
+        df_tweets['Post date'], format='%a %b %d %H:%M:%S %z %Y', utc=True
+    ).dt.tz_convert('US/Pacific')
     df_tweets['retweet_count'] = df_tweets['retweet_count'].astype("Int64")
     df_tweets['favorite_count'] = df_tweets['favorite_count'].astype("Int64")
 
@@ -763,6 +911,7 @@ def main(argv=None):
                         help="Construct monthly_iris.csv from monthly summaries")
     parser.add_argument("--all", action="store_true",
                         help="Run the full pipeline in order (daily, weekly, monthly, seasonal, training data)")
+    parser.add_argument("--seed", type=int, default=0, help="Local training-prompt augmentation seed")
     args = parser.parse_args(argv)
 
     requested = any([args.daily, args.weekly, args.monthly, args.seasonal,
@@ -771,22 +920,27 @@ def main(argv=None):
         parser.print_help()
         return
 
-    if args.all or args.daily:
-        df_merged = load_merged_data(args.fourthought, args.twitter)
-        create_daily_summaries(df_merged)
-    if args.all or args.weekly:
-        create_weekly_summaries()
-    if args.all or args.monthly:
-        create_monthly_summaries()
-    if args.all or args.seasonal:
-        create_seasonal_summaries()
-    if args.all or args.train_daily:
-        construct_daily_training_data()
-    if args.all or args.train_weekly:
-        construct_weekly_training_data()
-    if args.all or args.train_monthly:
-        construct_monthly_training_data()
+    try:
+        if args.all or args.daily:
+            df_merged = load_merged_data(args.fourthought, args.twitter)
+            create_daily_summaries(df_merged)
+        if args.all or args.weekly:
+            create_weekly_summaries()
+        if args.all or args.monthly:
+            create_monthly_summaries()
+        if args.all or args.seasonal:
+            create_seasonal_summaries()
+        if args.all or args.train_daily:
+            construct_daily_training_data(seed=args.seed)
+        if args.all or args.train_weekly:
+            construct_weekly_training_data(seed=args.seed)
+        if args.all or args.train_monthly:
+            construct_monthly_training_data(seed=args.seed)
+    except (SummaryRequestError, SummaryCacheError, iris_llm.ModelOutputError) as exc:
+        print(f"Hindsight failed: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

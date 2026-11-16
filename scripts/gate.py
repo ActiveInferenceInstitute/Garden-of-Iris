@@ -7,7 +7,7 @@ any command.
 
 Usage:
     python scripts/gate.py                  # default arm: fast (offline tests)
-    python scripts/gate.py <arm> [<arm>...] # any combination, in the given order
+    python scripts/gate.py <arm> [<arm>...] # ordinary arms in the given order
     python scripts/gate.py all              # every distinct check, once each
     python scripts/gate.py list             # table of arms and their commands
     python scripts/gate.py measure --label before|after
@@ -17,12 +17,12 @@ Usage:
                                             # from the code and those receipts
     python scripts/gate.py report --check   # fail if the generated facts are
                                             # stale, or the receipts drifted
+    report/list/measure run alone; mixed administrative invocations are errors.
 
 Arms:
 
-    syntax  Compile every module. This is the lint arm: the repository has no
-            static linter, formatter, or type checker, so there is no `types`
-            arm and nothing here to type-check.
+    syntax  Compile authored Python, pruning dependencies and caches.
+            No static linter, formatter or type checker is defined.
     docs    Relative links and heading anchors, then the generated-number
             freshness check.
     fast    The offline unit suite (`-m "not network"`): no key, no network.
@@ -75,8 +75,8 @@ class Arm:
 
 ARMS: dict[str, Arm] = {
     "syntax": Arm(
-        "Compile every module (`compileall`); the repository's only lint gate.",
-        ((PYTHON, "-m", "compileall", "-q", "."),),
+        "Compile authored Python only, pruning installed environments and caches.",
+        ((PYTHON, "scripts/check_syntax.py"),),
     ),
     "docs": Arm(
         "Relative markdown links and heading anchors, then generated-number freshness.",
@@ -452,12 +452,17 @@ def main(argv: list[str]) -> int:
             parser.error("--check is only valid with `report`")
         args.arms = [DEFAULT_ARM]
 
+    if any(name in {"report", "list"} for name in args.arms):
+        if len(args.arms) != 1:
+            parser.error("`report` and `list` each run alone")
+        if args.arms == ["list"]:
+            if args.check:
+                parser.error("--check is only valid with `report`")
+            return list_arms()
+        return check_report() if args.check else write_report()
+
     names: list[str] = []
     for name in args.arms:
-        if name == "report":
-            return check_report() if args.check else write_report()
-        if name == "list":
-            return list_arms()
         if name == "all":
             names.extend(ALL_ARMS)
             continue

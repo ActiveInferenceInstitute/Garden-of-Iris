@@ -1,8 +1,9 @@
 # `tests/`
 
-Pytest suite for the Garden-of-Iris scripts. The tests stub the model client,
-so they need no API key and no network access; only the OpenRouter catalog
-check under `scripts/` touches the network, and it is not part of this suite.
+Pytest suite for Garden-of-Iris. Core model-transport substitutions need no API key,
+but they do not prove a live service. GNN controls use actual parser/checker processes;
+Discord and neural-sketch tests require genuine prepared component dependencies.
+Missing components or skipped cases are unqualified prerequisites, not successes.
 
 ## Files
 
@@ -14,6 +15,10 @@ check under `scripts/` touches the network, and it is not part of this suite.
 | [`test_hindsight.py`](test_hindsight.py) | `hindsight`: chunk balancing, the stubbed summary call, and CLI usage. |
 | [`test_data_tools.py`](test_data_tools.py) | `text_process` and `twitter_archive` data-tool helpers. |
 | [`test_no_legacy_api.py`](test_no_legacy_api.py) | Guard that no legacy pre-1.0 API surface or `openai_legacy` shim returns. |
+| [`test_discord_bot.py`](test_discord_bot.py) | Real Discord types with offline transport boundaries; requires the prepared Discord/Airtable component runtime |
+| [`test_iris_apparently.py`](test_iris_apparently.py) | Real TensorFlow/sklearn engineering and private-bundle controls, not scientific training acceptance |
+| [`test_gate_cli.py`](test_gate_cli.py) | Administrative/arm argument and authored-syntax contracts |
+| [`test_gnn_conformance.py`](test_gnn_conformance.py) | Real pinned parser/checker, source inventory, checked bootstrap and verdict-lifetime controls |
 
 ## Run
 
@@ -23,10 +28,16 @@ python scripts/gate.py fast    # this suite, offline: `-m "not network"`
 python scripts/gate.py tests   # the whole suite
 ```
 
-`pytest.ini` declares the `network` marker; no test carries it today, so `fast`
-and `tests` collect the same 32 tests. CI (`.github/workflows/ci.yml`) runs the
-`tests` arm of `scripts/gate.py` — not both — alongside the `syntax`, `docs`,
-and `models` arms, and the `gnn-conformance` job runs the `gnn` arm. The
-documentation for the components these tests exercise is in
-[`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md), and the arm table plus
-measured numbers are in [`../docs/_generated/GATES.md`](../docs/_generated/GATES.md).
+`fast` excludes the `network` marker; CI runs `tests`, not both overlapping arms.
+Do not maintain a handwritten test count; inspect the actual executed roster and
+distinguish missing optional components from passing cases.
+
+The GNN module requires explicit `GNN_BOOTSTRAP`, `GNN_SOURCE_MANIFEST`,
+`GNN_PACKAGE_ROOT` and `GNN_EXEMPLAR` inputs. It copies real reviewed resources into
+private fixtures outside the consumer's model-discovery root and installs nothing.
+Source-mode proof does not replace separate genuine installed-origin qualification,
+and neither establishes native execution or scientific validity.
+
+See [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) and
+[`../docs/RUN_GUIDE.md`](../docs/RUN_GUIDE.md). Generated historical timing/inventory
+receipts are not current proof when their source or command population has changed.

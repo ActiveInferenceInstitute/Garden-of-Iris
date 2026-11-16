@@ -58,7 +58,7 @@ Columns consumed by `hindsight.py`:
 | `Post date` | `%m/%d/%y %I:%M %p` | Parsed as US/Pacific time |
 | `Good` | Two-line cell: `+N` / `-M` | Split into `Positive` / `Negative` vote counts |
 | `Thought` | Free text | The thought content |
-| `Privacy` | `0` = Public, else Private | Reflected in summary prompts |
+| `Privacy` | `0` = Public, else Private | Prompt label only; not exclusion, redaction or authorization |
 | `Truth` | Numeric | Average certainty, 0–100 |
 | `Type` | FourThought type | e.g. `PREDICTION`, `REFLECTION`, `STATEMENT`, `QUESTION` |
 
@@ -72,16 +72,27 @@ Created by the scripts at the repository root; all are covered by
 | `twitter_archive.csv` | `twitter_archive.py` | `id, created_at, full_text, retweet_count, favorite_count, lang` |
 | `ceresonepage.csv` | `text_process.py` | `prompt, completion` |
 | `iris_training-data.csv` | `discord_bot.py` (`load_training_data`, `/claim`, `/ask`) | `prompt, completion, speaker` |
-| `daily_summaries.csv` | `hindsight.py` `create_daily_summaries` | `Date, Summary` |
-| `weekly_summaries.csv` | `hindsight.py` `create_weekly_summaries` | `Week_Start_Date, Summary` |
-| `monthly_summaries.csv` | `hindsight.py` `create_monthly_summaries` | `Month_Year, Summary` |
+| `daily_summaries.csv` | `hindsight.py` `create_daily_summaries` | `Date, Summary, Binding, Context` |
+| `weekly_summaries.csv` | `hindsight.py` `create_weekly_summaries` | `Week_Start_Date, Summary, Binding, Context` |
+| `monthly_summaries.csv` | `hindsight.py` `create_monthly_summaries` | `Month_Year, Summary, Binding, Context` |
 | `temporal_iris.csv` | `hindsight.py` `construct_daily_training_data` | `Prompt, Completion` |
 | `weekly_iris.csv` | `hindsight.py` `construct_weekly_training_data` | `Prompt, Completion` |
 | `monthly_iris.csv` | `hindsight.py` `construct_monthly_training_data` | `Prompt, Completion` |
 
 ## Provenance note
 
-The untracked inputs above contain personal thought archives. Treat them as
-private: do not commit them, and be careful about what a summarization run
-prints (the code itself instructs the model to avoid summarizing private
-thoughts).
+Raw and derived archives are operator-owned private inputs: do not commit them.
+A privacy label or a prompt asking a model to avoid private material is not a filtering
+or authorization boundary. Remote processing, retention, caching and logging require
+the data steward's approval.
+
+Summary caches carry `iris-summary/v1` bindings to their actual inputs, prompts,
+output and recorded prompt time. Cache reuse is recorded-output reuse, not a claim
+of deterministic fresh inference. Training-pair outputs carry
+`iris-training-pairs/v1` provenance and use a local augmentation seed.
+Empty Twitter exports retain the complete schema; ordinary converter output omits
+record text, but the resulting CSV still contains the selected private data.
+
+Current Discord attribution/persistence and sketch-bundle changes remain separately
+component-qualified; source changes do not rewrite historical attribution strings or
+grant consent for live feedback collection.

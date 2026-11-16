@@ -37,7 +37,7 @@ def write_csv(rows, output_path):
     """Write the tweet rows as a CSV."""
     import pandas as pd
 
-    pd.DataFrame(rows).to_csv(output_path, index=False)
+    pd.DataFrame(rows, columns=FIELDS).to_csv(output_path, index=False)
 
 
 def main(argv=None):
@@ -52,7 +52,6 @@ def main(argv=None):
         print(f"Error reading {input_path}: {exc}")
         return 1
 
-    print(tweets[0:10])
     write_csv(tweets_to_rows(tweets), output_path)
     print("Twitter archive has been successfully converted to CSV.")
     return 0

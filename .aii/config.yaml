@@ -1,7 +1,7 @@
 # AII sidecar — InstituteOS metadata. Schema: aii_platform.aii_sidecar
 meta:
-  sidecar_version: 1.2.1
-  updated: '2026-11-12'
+  sidecar_version: 1.2.2
+  updated: '2026-11-16'
 repo:
   name: Garden-of-Iris
   slug: garden-of-iris
@@ -20,7 +20,7 @@ ecosystem:
     note: Federated via the InstituteOS .aii manifest.
   - repo: ActiveInferenceInstitute/Generalized_Notation_Notation
     relation: references
-    note: Uses Generalized Notation Notation (GNN) for model specifications.
+    note: References GNN and checks its pinned upstream exemplar; no authored generative model is declared.
   links:
     github: https://github.com/ActiveInferenceInstitute/Garden-of-Iris
     website: https://www.activeinference.org
@@ -45,6 +45,12 @@ artifacts:
 - path: docs
   kind: doc
   description: Documentation tree.
+- path: docs/documentation-index.md
+  kind: doc
+  description: Repository documentation index.
+- path: docs/workflows/publishing.md
+  kind: doc
+  description: Publishing artifact identity and adapter contract.
 provenance:
   license: CC-BY-4.0
   citation:
@@ -63,7 +69,7 @@ capabilities:
 tasks:
   syntax:
     cmd: python scripts/gate.py syntax
-    description: Compile every Python module.
+    description: Compile authored Python, excluding environments and caches.
   docs:
     cmd: python scripts/gate.py docs
     description: 'Check links, index coverage, publishing digests and generated facts.
@@ -86,7 +92,5 @@ docs:
 - docs/INTEGRATION.md
 - docs/README.md
 - AGENTS.md
-- ../docs/documentation-index.md
-- ../docs/workflows/publishing.md
 - docs/AGENTS.md
 schema: aii-sidecar/v1

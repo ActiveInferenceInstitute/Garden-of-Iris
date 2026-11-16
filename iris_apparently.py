@@ -13,6 +13,10 @@ committed to this repository.
 """
 
 import sys
+import argparse
+import json
+import hashlib
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -32,8 +36,8 @@ def load_csv(file_path):
 # Preprocess the data
 def preprocess_data(data, tokenizer, max_length, source_id_to_idx, timestamp_to_idx):
     text_data = data['text'].tolist()
-    source_data = data['source_id'].apply(lambda x: source_id_to_idx[x]).tolist()
-    timestamp_data = data['timestamp'].apply(lambda x: timestamp_to_idx[x]).tolist()
+    source_data = data['source_id'].apply(lambda value: source_id_to_idx.get(value, 0)).tolist()
+    timestamp_data = data['timestamp'].apply(lambda value: timestamp_to_idx.get(pd.Timestamp(value), 0)).tolist()
 
     # Tokenize the text data
     sequences = tokenizer.texts_to_sequences(text_data)
@@ -62,6 +66,7 @@ def create_sinusoidal_embeddings(data, d_model):
     # Compute sinusoidal embeddings
     for idx, timestamp in enumerate(data):
         position = idx
+        timestamp = pd.Timestamp(timestamp)
         div_term = np.exp(np.arange(0, d_model, 2) * -(np.log(10000.0) / d_model))
 
         second = timestamp.second / 60
@@ -100,6 +105,113 @@ def positional_encoding(position, d_model):
 def get_angles(pos, i, d_model):
     angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
     return pos * angle_rates
+
+
+@tf.keras.utils.register_keras_serializable(package="Iris")
+def masked_token_loss(targets, logits):
+    losses = tf.keras.losses.sparse_categorical_crossentropy(targets, logits, from_logits=True)
+    weights = tf.cast(tf.not_equal(tf.cast(targets, tf.int32), 0), losses.dtype)
+    return tf.math.divide_no_nan(tf.reduce_sum(losses * weights), tf.reduce_sum(weights))
+
+
+@tf.keras.utils.register_keras_serializable(package="Iris")
+class MaskedTokenAccuracy(tf.keras.metrics.SparseCategoricalAccuracy):
+    def __init__(self, name="masked_token_accuracy", **kwargs):
+        super().__init__(name=name, **kwargs)
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        weights = tf.cast(tf.not_equal(tf.cast(y_true, tf.int32), 0), self.dtype)
+        if sample_weight is not None:
+            supplied = tf.cast(sample_weight, self.dtype)
+            if supplied.shape.rank == 1 and weights.shape.rank == 2:
+                supplied = supplied[:, tf.newaxis]
+            weights *= supplied
+        return super().update_state(y_true, y_pred, sample_weight=weights)
+
+
+def prepare_training_data(data, *, vocab_size=30000, max_length=256, d_model=512, seed=42):
+    """Retain the existing random-row split, fitting learned preprocessing on training rows only."""
+    data = data.copy()
+    if not {"text", "source_id", "timestamp"}.issubset(data.columns):
+        raise ValueError("Training CSV requires text, source_id and timestamp")
+    if data[["text", "source_id", "timestamp"]].isna().any().any():
+        raise ValueError("Training rows cannot contain missing text/source/timestamp")
+    data["timestamp"] = pd.to_datetime(data["timestamp"])
+    train, validation = train_test_split(data, train_size=0.8, random_state=seed)
+    tokenizer = Tokenizer(num_words=vocab_size, oov_token="<OOV>")
+    tokenizer.fit_on_texts(train["text"])
+    source_map = {source: index + 1 for index, source in enumerate(train["source_id"].unique())}
+    timestamps = list(train["timestamp"].drop_duplicates())
+    temporal, timestamp_map = create_sinusoidal_embeddings(timestamps, d_model)
+    temporal = tf.concat([tf.zeros((1, d_model), dtype=tf.float32), temporal], axis=0)
+    timestamp_map = {pd.Timestamp(value): index + 1 for value, index in timestamp_map.items()}
+    training = create_tensors(*preprocess_data(train, tokenizer, max_length, source_map, timestamp_map))
+    held_out = create_tensors(*preprocess_data(validation, tokenizer, max_length, source_map, timestamp_map))
+    return {
+        "training": training, "validation": held_out, "tokenizer": tokenizer,
+        "source_map": source_map, "timestamp_map": timestamp_map, "temporal": temporal,
+        "train_indices": train.index.tolist(), "validation_indices": validation.index.tolist(),
+        "seed": seed, "max_length": max_length,
+        "data_sha256": hashlib.sha256(
+            data.to_json(orient="split", date_format="iso").encode("utf-8")
+        ).hexdigest(),
+    }
+
+
+def _file_sha256(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def save_training_bundle(model, prepared, config, directory):
+    directory = Path(directory)
+    if directory.exists() and any(directory.iterdir()):
+        raise FileExistsError("Select a fresh private bundle directory; existing outputs are preserved")
+    directory.mkdir(parents=True, mode=0o700, exist_ok=True)
+    model.save_weights(str(directory / "model.weights.h5"))
+    sources = [
+        [value.item() if isinstance(value, np.generic) else value, index]
+        for value, index in prepared["source_map"].items()
+    ]
+    metadata = {
+        "schema": "iris-sketch-bundle/v1", "config": config,
+        "tokenizer": prepared["tokenizer"].to_json(), "sources": sources,
+        "timestamps": [[value.isoformat(), index] for value, index in prepared["timestamp_map"].items()],
+        "temporal": np.asarray(prepared["temporal"]).tolist(),
+        "seed": prepared["seed"], "max_length": prepared["max_length"],
+        "train_indices": prepared["train_indices"], "validation_indices": prepared["validation_indices"],
+        "data_sha256": prepared["data_sha256"],
+        "weights_sha256": _file_sha256(directory / "model.weights.h5"),
+        "program_sha256": _file_sha256(__file__),
+        "versions": {"tensorflow": tf.__version__, "numpy": np.__version__, "pandas": pd.__version__},
+        "objective": "existing same-sequence encoder-decoder; research qualification pending",
+        "unseen_categories": "index 0; timestamp vector is zero; source embedding is untrained",
+        "evaluation": "existing seeded random-row split; research evaluation policy pending",
+    }
+    (directory / "preprocessing.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+
+def load_training_bundle(directory):
+    directory = Path(directory)
+    metadata = json.loads((directory / "preprocessing.json").read_text(encoding="utf-8"))
+    if metadata.get("schema") != "iris-sketch-bundle/v1":
+        raise ValueError("Unsupported Iris bundle schema")
+    if metadata.get("weights_sha256") != _file_sha256(directory / "model.weights.h5"):
+        raise ValueError("Iris bundle weights do not match preprocessing metadata")
+    model = DemocraticLLM(**metadata["config"], temporal_emb=np.asarray(metadata["temporal"]))
+    length = metadata["max_length"]
+    model([tf.zeros((1, length), tf.int32), tf.zeros((1,), tf.int32), tf.zeros((1,), tf.int32)])
+    model.load_weights(str(directory / "model.weights.h5"))
+    return {
+        "model": model,
+        "tokenizer": tf.keras.preprocessing.text.tokenizer_from_json(metadata["tokenizer"]),
+        "source_map": dict(metadata["sources"]),
+        "timestamp_map": {pd.Timestamp(value): index for value, index in metadata["timestamps"]},
+        "max_length": length, "metadata": metadata,
+    }
 
 
 def create_padding_mask(seq):
@@ -347,17 +459,18 @@ class DemocraticLLM(tf.keras.Model):
 
     def call(self, inputs, training=False, enc_padding_mask=None, look_ahead_mask=None,
              dec_padding_mask=None, source_embeddings=None, temporal_embeddings=None):
-        # inputs: (token_ids, source_ids, timestamp_ids). The decoder is
-        # teacher-forced on the same token sequence (next-token prediction),
-        # which is what the training flow in main() feeds via model.fit.
+        # Preserve same-sequence decoding. Full encoder context means this is
+        # not qualified as causal next-token prediction; that task choice is open.
         enc_input, source_ids, timestamp_ids = inputs
         dec_input = enc_input
 
         if enc_padding_mask is None:
             enc_padding_mask = create_padding_mask(enc_input)
-        if look_ahead_mask is None or dec_padding_mask is None:
+        if look_ahead_mask is None:
             look_ahead_mask = create_look_ahead_mask(tf.shape(dec_input)[1])
+        if dec_padding_mask is None:
             dec_padding_mask = create_padding_mask(dec_input)
+        decoder_self_mask = tf.maximum(look_ahead_mask, dec_padding_mask)
 
         if source_embeddings is None and self.source_embedding is not None:
             source_embeddings = tf.expand_dims(self.source_embedding(source_ids), 1)  # (batch, 1, d_model)
@@ -368,8 +481,8 @@ class DemocraticLLM(tf.keras.Model):
             enc_input, training=training, mask=enc_padding_mask,
             source_embeddings=source_embeddings, temporal_embeddings=temporal_embeddings)
         dec_output, dec_attention_weights = self.decoder(
-            dec_input, enc_output, training=training, look_ahead_mask=look_ahead_mask,
-            padding_mask=dec_padding_mask, source_embeddings=source_embeddings,
+            dec_input, enc_output, training=training, look_ahead_mask=decoder_self_mask,
+            padding_mask=enc_padding_mask, source_embeddings=source_embeddings,
             temporal_embeddings=temporal_embeddings)
 
         final_output = self.final_layer(dec_output)
@@ -379,78 +492,30 @@ class DemocraticLLM(tf.keras.Model):
 
 
 def main(argv=None):
-    """Load a CSV (text, source_id, timestamp) and train a DemocraticLLM.
-
-    Usage: python iris_apparently.py [path/to/your_csv_file.csv]
-    """
-    if argv is None:
-        argv = sys.argv[1:]
-    file_path = argv[0] if argv else "your_csv_file.csv"
-
-    data = load_csv(file_path)
-
-    # Set up tokenizer, source_id_to_idx, timestamp_to_idx, and max_length
-    vocab_size = 30000  # Set the desired vocabulary size
-    tokenizer = Tokenizer(num_words=vocab_size, oov_token="<OOV>")
-    tokenizer.fit_on_texts(data['text'])
-
-    unique_sources = data['source_id'].unique()
-    source_id_to_idx = {source: idx for idx, source in enumerate(unique_sources)}
-
-    # Convert the timestamp strings to datetime objects
-    data['timestamp'] = pd.to_datetime(data['timestamp'])
-    timestamps = data['timestamp'].unique()
-    temporal_emb, timestamp_to_idx = create_sinusoidal_embeddings(timestamps, d_model=512)
-
-    max_length = 256
-
-    # Preprocess the data
-    input_ids, source_data, timestamp_data = preprocess_data(data, tokenizer, max_length, source_id_to_idx, timestamp_to_idx)
-
-    # Split the data into training and validation sets (numpy arrays, since
-    # sklearn's train_test_split does not index TensorFlow tensors)
-    train_frac = 0.8
-    (input_ids_train, input_ids_val,
-     source_data_train, source_data_val,
-     timestamp_data_train, timestamp_data_val) = train_test_split(
-        np.asarray(input_ids), np.asarray(source_data), np.asarray(timestamp_data),
-        train_size=train_frac, random_state=42)
-
-    # Create tensor representations for each split
-    input_ids_train_t, source_data_train_t, timestamp_data_train_t = create_tensors(
-        input_ids_train, source_data_train, timestamp_data_train)
-    input_ids_val_t, source_data_val_t, timestamp_data_val_t = create_tensors(
-        input_ids_val, source_data_val, timestamp_data_val)
-
-    # Set the model hyperparameters
-    d_model = 512
-    num_heads = 8
-    num_layers = 6
-    dff = 2048
-    dropout_rate = 0.1
-
-    # Create the DemocraticLLM model
-    model = DemocraticLLM(num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff,
-                          dropout_rate=dropout_rate, input_vocab_size=vocab_size,
-                          target_vocab_size=vocab_size, max_position_encoding=max_length,
-                          num_sources=len(unique_sources), temporal_emb=temporal_emb)
-
-    # Compile the model with an appropriate loss function and optimizer
-    model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-
-    # Set the training hyperparameters
-    epochs = 10
-    batch_size = 32
-
-    # Train the model using the fit method
+    """Train the existing sketch with explicit local seed and a preprocessing/weights bundle."""
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("csv", help="Authorized text,source_id,timestamp CSV")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--output-dir", required=True, help="Fresh operator-owned private bundle directory")
+    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    # This dedicated training entry point owns framework initialization/shuffling.
+    tf.keras.utils.set_random_seed(args.seed)
+    prepared = prepare_training_data(load_csv(args.csv), seed=args.seed)
+    config = {
+        "num_layers": 6, "d_model": 512, "num_heads": 8, "dff": 2048,
+        "input_vocab_size": 30000, "target_vocab_size": 30000,
+        "max_position_encoding": prepared["max_length"],
+        "num_sources": len(prepared["source_map"]) + 1, "dropout_rate": 0.1,
+    }
+    model = DemocraticLLM(**config, temporal_emb=prepared["temporal"])
+    model.compile(loss=masked_token_loss, optimizer="adam", metrics=[MaskedTokenAccuracy()])
+    training, validation = prepared["training"], prepared["validation"]
     history = model.fit(
-        x=[input_ids_train_t, source_data_train_t, timestamp_data_train_t],
-        y=input_ids_train_t,
-        validation_data=([input_ids_val_t, source_data_val_t, timestamp_data_val_t], input_ids_val_t),
-        epochs=epochs,
-        batch_size=batch_size,
-        verbose=1)
-
+        x=list(training), y=training[0],
+        validation_data=(list(validation), validation[0]),
+        epochs=10, batch_size=32, verbose=1,
+    )
+    save_training_bundle(model, prepared, config, args.output_dir)
     return history
 
 
