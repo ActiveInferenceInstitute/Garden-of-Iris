@@ -189,8 +189,11 @@ def verify(
                 # The producer's one-worker path executes in this process.
                 # A spawned checker would need its own pre-import admission.
                 type_result = GNNTypeChecker().validate_gnn_files(model_dir, output, file_workers=1)
-                if not type_result:
-                    raise ConformanceError("type-check-rejected", "GNN type checker rejected the selected models")
+                if type_result is not True:
+                    raise ConformanceError(
+                        "type-check-rejected",
+                        f"GNN type checker rejected the selected models (returned {type_result!r})",
+                    )
         # The context has revalidated every loaded member and the full inventory.
         # Also bind the independent input files through completion, not just entry.
         _checked_resource(bootstrap_path, BOOTSTRAP_SHA256, "bootstrap")

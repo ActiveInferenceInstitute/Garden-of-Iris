@@ -18,7 +18,7 @@ Missing components or skipped cases are unqualified prerequisites, not successes
 | [`test_discord_bot.py`](test_discord_bot.py) | Real Discord types with offline transport boundaries; requires the prepared Discord/Airtable component runtime |
 | [`test_iris_apparently.py`](test_iris_apparently.py) | Real TensorFlow/sklearn engineering and private-bundle controls, not scientific training acceptance |
 | [`test_gate_cli.py`](test_gate_cli.py) | Administrative/arm argument and authored-syntax contracts |
-| [`test_gnn_conformance.py`](test_gnn_conformance.py) | Real pinned parser/checker, source inventory, checked bootstrap and verdict-lifetime controls |
+| [`test_gnn_conformance.py`](test_gnn_conformance.py) | Real pinned parser/checker, literal-`True` acceptance and actual invalid-dimension refusals, source inventory, checked bootstrap and verdict-lifetime controls |
 
 ## Run
 

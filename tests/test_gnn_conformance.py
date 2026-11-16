@@ -110,6 +110,7 @@ def _success(completed):
     assert len(reports) == 1, completed.stdout
     report = reports[0]
     assert report["result"] == "verified"
+    assert report["type-check-result"] is True
     qualification = report["source-qualification"]
     assert qualification["ok"] is True
     assert qualification["status"] == "qualified"
@@ -162,6 +163,30 @@ def test_repository_models_use_the_same_guarded_parser_and_checker(project):
     report = _success(_run(project))
     assert report["source"] == "repository"
     assert report["models"] == 2
+
+
+@pytest.mark.parametrize("repository_model", [False, True])
+def test_real_type_invalid_model_cannot_publish_a_verified_verdict(project, repository_model):
+    root, environment = project
+    target = root / "invalid.gnn.md" if repository_model else Path(environment["GNN_EXEMPLAR"])
+    target.write_text(
+        "## GNNSection\n\nActInfPOMDP\n\n## GNNVersionAndFlags\n\nGNN v1\n\n"
+        "## ModelName\n\nType Invalid Fixture\n\n## ModelAnnotation\n\n"
+        "A[3,2] with C[2]: preference length differs from the observation dimension.\n\n"
+        "## StateSpaceBlock\n\nA[3,2,type=float]\nB[2,2,2,type=float]\nC[2,type=float]\n"
+        "D[2,1,type=float]\ns[2,1,type=float]\no[3,1,type=int]\nu[1,type=int]\n\n"
+        "## Connections\n\nD>s\ns-A\nA-o\ns-B\nB>u\nu>s\n\n"
+        "## InitialParameterization\n\nA={\n  (0.9, 0.2),\n  (0.1, 0.8),\n  (0.0, 0.0)\n}\n\n"
+        "B={\n  ( (0.95, 0.05), (0.05, 0.95) ),\n  ( (0.05, 0.95), (0.95, 0.05) )\n}\n\n"
+        "C={(0.0, 0.0)}\nD={(0.5, 0.5)}\n\n## Time\n\nStatic\n\n"
+        "## ActInfOntologyAnnotation\n\nA=LikelihoodMatrix\nB=TransitionMatrix\n"
+        "C=PreferenceVector\nD=Prior\ns=HiddenState\no=Observation\nu=Action\n\n"
+        "## Footer\n\nType-invalid regression fixture.\n",
+        encoding="utf-8",
+    )
+    completed = _run(project)
+    _failure(completed, "type-check-rejected")
+    assert "returned 2" in completed.stderr
 
 
 def test_gate_uses_the_selected_real_interpreter_for_the_entire_verdict(project):
