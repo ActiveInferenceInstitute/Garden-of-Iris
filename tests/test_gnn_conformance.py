@@ -1,8 +1,9 @@
 """Real-file/process GNN admission controls; no installs, network or fake parsers.
 
 The parent supplies GNN_BOOTSTRAP, GNN_SOURCE_MANIFEST, GNN_PACKAGE_ROOT and
-GNN_EXEMPLAR from its independently reviewed v5.0.3 delivery. Missing inputs
-are failed prerequisites, not skips or installed-mode qualification. All mutable
+GNN_EXEMPLAR from its independently reviewed v5.0.3 delivery. The module is
+selected only by `--gnn-admission` (the `admission` gate arm); there, missing
+inputs are failed prerequisites, not skips or installed-mode qualification. All mutable
 copies and process output belong to pytest's disposable temporary root.
 """
 
@@ -18,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+
+pytestmark = pytest.mark.gnn_resources
 
 ROOT = Path(__file__).resolve().parents[1]
 RESOURCE_NAMES = (

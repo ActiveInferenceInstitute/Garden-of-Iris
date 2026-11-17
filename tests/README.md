@@ -32,8 +32,11 @@ python scripts/gate.py tests   # the whole suite
 Do not maintain a handwritten test count; inspect the actual executed roster and
 distinguish missing optional components from passing cases.
 
-The GNN module requires explicit `GNN_BOOTSTRAP`, `GNN_SOURCE_MANIFEST`,
-`GNN_PACKAGE_ROOT` and `GNN_EXEMPLAR` inputs. It copies real reviewed resources into
+The GNN module carries the `gnn_resources` marker and runs only under
+`--gnn-admission` (`python scripts/gate.py admission`); `fast` and `tests`
+deselect it. Under that option it requires explicit `GNN_BOOTSTRAP`,
+`GNN_SOURCE_MANIFEST`, `GNN_PACKAGE_ROOT` and `GNN_EXEMPLAR` inputs, and a missing
+input is a failed prerequisite, not a skip. It copies real reviewed resources into
 private fixtures outside the consumer's model-discovery root and installs nothing.
 Source-mode proof does not replace separate genuine installed-origin qualification,
 and neither establishes native execution or scientific validity.
