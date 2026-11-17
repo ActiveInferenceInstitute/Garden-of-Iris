@@ -57,7 +57,7 @@ TensorFlow sketch of an Iris model architecture.
 | `data/semantic-iris.csv` | Training data: `prompt,completion` pairs |
 | `data/chat-iris.csv` | Training data: `prompt,completion,Source` triples |
 | `tests/` | Core helpers, optional Discord/sketch components, gate contracts and real GNN source/installed admission |
-| `scripts/gate.py` | The gate: one entry point whose arms (`syntax`, `docs`, `fast`, `tests`, `models`, `gnn`) CI also runs |
+| `scripts/gate.py` | The gate: one entry point whose arms (`syntax`, `docs`, `fast`, `tests`, `models`, `gnn`) CI also runs, plus `admission` for the reviewed-input GNN controls |
 | `scripts/check_markdown_links.py` | Gate helper: validates relative links and heading anchors in all markdown |
 | `scripts/check_openrouter_models.py` | Gate helper: verifies the scripts' model IDs against the live OpenRouter catalog |
 | `scripts/check_gnn_conformance.py` | Gate helper: reviewed bootstrap/manifest admission and guarded pinned parser/checker; explicit no-install source or genuine installed mode |

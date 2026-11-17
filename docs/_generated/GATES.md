@@ -17,6 +17,7 @@ check once with `all` (`syntax docs tests models gnn`).
 | `tests` | `python -m pytest tests -q` | Whole unit suite: `pytest tests/`. |
 | `models` | `python scripts/check_openrouter_models.py` | Model IDs exist in the live OpenRouter catalog (network). |
 | `gnn` | `python scripts/check_gnn_conformance.py` | Pinned GNN conformance: install `.github/gnn-pin.json`'s parser revision, parse and type-check. |
+| `admission` | `python -m pytest tests/test_gnn_conformance.py -q --gnn-admission` | Reviewed-input GNN admission controls: needs GNN_BOOTSTRAP, GNN_SOURCE_MANIFEST, GNN_PACKAGE_ROOT, GNN_EXEMPLAR; missing inputs fail. |
 
 `fast` is the offline subset of `tests` (`-m "not network"`), so `all` runs `tests` and skips `fast`.
 
@@ -25,13 +26,13 @@ check once with `all` (`syntax docs tests models gnn`).
 | File | Tests |
 | --- | --- |
 | `tests/test_data_tools.py` | 7 |
-| `tests/test_gate_cli.py` | 10 |
+| `tests/test_gate_cli.py` | 12 |
 | `tests/test_gnn_conformance.py` | 28 |
 | `tests/test_hindsight.py` | 26 |
 | `tests/test_iris_llm.py` | 16 |
 | `tests/test_no_legacy_api.py` | 2 |
 | `tests/test_parse_fourthought.py` | 20 |
-| **total** | **109** |
+| **total** | **111** |
 
 ## Measured runtimes
 

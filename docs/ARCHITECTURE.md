@@ -291,7 +291,10 @@ entry point is `scripts/gate.py`; each arm is one command shared with
 `.github/workflows/ci.yml`: `syntax`, `docs`, `fast`, `tests`, `models`, and
 `gnn`. The `checks` job runs `syntax`, `docs`, `tests`, and `models`; the
 `gnn conformance (pinned)` job runs `gnn`, whose reviewed-input/source/installed
-contracts are in `.github/GNN.md`. Model-transport unit substitutions need no API key;
+contracts are in `.github/GNN.md`. The `admission` arm runs the `gnn_resources`
+tests (`tests/test_gnn_conformance.py`) under `--gnn-admission` and needs the
+reviewed `GNN_*` inputs; `fast` and `tests` deselect those tests, and CI does not
+run `admission` until hosted delivery of those inputs exists. Model-transport unit substitutions need no API key;
 GNN controls use actual parser/checker processes. Optional component prerequisites
 and live-service acceptance remain separate.
 Arm runtimes and the test inventory are recorded in

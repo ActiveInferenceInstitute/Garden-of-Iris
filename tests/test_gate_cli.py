@@ -80,3 +80,20 @@ def test_authored_syntax_excludes_environment_and_symlink_contents(tmp_path, mon
     assert "dependency.py" not in error
     assert not list(root.rglob("*.pyc"))
     assert not list(root.rglob("__pycache__"))
+
+
+@pytest.mark.parametrize("option, expected", [([], 0), (["--gnn-admission"], 28)])
+def test_reviewed_input_gnn_tests_are_selected_only_by_the_admission_option(option, expected):
+    import os
+    import subprocess
+
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GNN_")}
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/test_gnn_conformance.py", "--collect-only", "-q",
+         "-p", "no:cacheprovider", *option],
+        cwd=ROOT, env=environment, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120,
+    )
+    selected = [line for line in result.stdout.splitlines() if line.startswith("tests/test_gnn_conformance.py::")]
+    assert len(selected) == expected, result.stdout + result.stderr
+    if not option:
+        assert "28 deselected" in result.stdout

@@ -36,15 +36,18 @@ Do not hand-edit measured numbers or mark `docs` green while `report --check` fa
 | --- | --- | --- |
 | `syntax` | Compiles authored Python into disposable output, excluding environments/caches. No static linter, formatter or type checker is claimed. | Python only |
 | `docs` | Publishing artifact digests and drift selftest, canonical relative links/anchors and docs-index coverage, then generated-number freshness. | `requirements-dev.txt` |
-| `fast` | Offline-marked unit selection (`-m "not network"`); default arm | Core dependencies plus reviewed GNN inputs; optional component prerequisites remain explicit |
-| `tests` | Whole unit suite | All actual component runtimes and reviewed GNN inputs |
+| `fast` | Offline-marked unit selection (`-m "not network"`); default arm; deselects `gnn_resources` | Core dependencies; optional component prerequisites remain explicit |
+| `tests` | Whole unit suite except `gnn_resources` (deselected) | All actual component runtimes |
 | `models` | The scripts' model IDs exist in the live OpenRouter catalog. | Network |
 | `gnn` | Guarded pinned parser/checker with reviewed bootstrap/manifest; source and installed modes are distinct | Prepared compatible Python and reviewed inputs; default acquisition/provisioning may need network |
+| `admission` | `tests/test_gnn_conformance.py` under `--gnn-admission`: reviewed-input admission controls | `GNN_BOOTSTRAP`, `GNN_SOURCE_MANIFEST`, `GNN_PACKAGE_ROOT`, `GNN_EXEMPLAR`; a missing input fails |
 
 `fast` is the offline subset of `tests`; `pytest.ini` declares the `network`
 marker, and no test carries it today, so both arms collect the same suite. `all`
 runs `syntax`, `docs`, `tests`, `models`, and `gnn` — it does not run `fast`
-again, because `tests` covers it.
+again, because `tests` covers it. `admission` is outside `all`, `measure` and CI
+until hosted delivery of the reviewed GNN inputs exists; run it wherever those
+inputs are bound.
 
 Administrative modes `list`, `report` and `measure` must stand alone; mixed commands
 or unknown trailing arguments fail before executing an arm or writing a report.
