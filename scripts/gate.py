@@ -30,6 +30,12 @@ Arms:
     models  Verify the scripts' model IDs against the live OpenRouter catalog
             (network).
     gnn     Pinned GNN conformance (installs the pinned parser revision).
+    admission
+            Reviewed-input GNN admission controls (tests marked
+            `gnn_resources`). Needs GNN_BOOTSTRAP, GNN_SOURCE_MANIFEST,
+            GNN_PACKAGE_ROOT and GNN_EXEMPLAR; a missing input fails. `fast` and
+            `tests` deselect these tests, and `all`/`measure` omit this arm until
+            hosted resource delivery exists.
 
 Every arm exits non-zero on failure. Multiple arms all run; the exit status is
 non-zero if any arm failed.
@@ -97,6 +103,10 @@ ARMS: dict[str, Arm] = {
     "gnn": Arm(
         "Pinned GNN conformance: install `.github/gnn-pin.json`'s parser revision, parse and type-check.",
         ((PYTHON, "scripts/check_gnn_conformance.py"),),
+    ),
+    "admission": Arm(
+        "Reviewed-input GNN admission controls: needs GNN_BOOTSTRAP, GNN_SOURCE_MANIFEST, GNN_PACKAGE_ROOT, GNN_EXEMPLAR; missing inputs fail.",
+        ((PYTHON, "-m", "pytest", "tests/test_gnn_conformance.py", "-q", "--gnn-admission"),),
     ),
 }
 
@@ -171,7 +181,9 @@ def run_arm(name: str, arms: dict[str, Arm]) -> tuple[bool, float]:
 def collect_tests() -> dict[str, int]:
     """Per-file test counts from pytest collection (a read-only query)."""
     result = subprocess.run(
-        expand(ARMS["tests"].steps[0]) + ["--collect-only"],
+        # `--gnn-admission` keeps the reviewed-input module in the inventory;
+        # collection alone needs no GNN_* inputs.
+        expand(ARMS["tests"].steps[0]) + ["--collect-only", "--gnn-admission"],
         cwd=ROOT,
         stdin=subprocess.DEVNULL,
         capture_output=True,
