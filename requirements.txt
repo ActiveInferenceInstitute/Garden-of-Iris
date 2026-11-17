@@ -5,6 +5,7 @@ openai>=3.46.0
 discord.py
 pandas
 tensorflow
+scikit-learn
 nltk
 pypdf
 selenium

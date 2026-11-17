@@ -36,29 +36,34 @@ python scripts/gate.py all      # syntax, docs, tests, models (network), gnn
 python scripts/gate.py list     # the arm table with exact commands
 ```
 
-There is no `types` arm: the repository has no static type checker. The `gnn`
-arm installs the parser revision pinned in `.github/gnn-pin.json` and needs
-Python 3.12 (the CI pin); that package declares `requires-python
->=3.11,<3.15`. Arm wall times, the test inventory, and the before/after
-comparison live in [docs/_generated/GATES.md](docs/_generated/GATES.md);
+There is no `types` arm. The `gnn` arm requires independently reviewed bootstrap
+and manifest inputs before candidate import; use explicit no-install source or
+genuine installed-origin qualification as described in `.github/GNN.md`.
+The pinned package requires Python `>=3.11,<3.15`; CI selects Python 3.12.
+Source proof is not installed, native, scientific or hosted proof.
+Historical arm wall times, test inventory and before/after comparison live in
+[docs/_generated/GATES.md](docs/_generated/GATES.md);
 `python scripts/gate.py measure --label before|after` writes the timing
 receipts and `python scripts/gate.py report` renders them — never hand-edit
 those numbers.
 See [docs/RUN_GUIDE.md](docs/RUN_GUIDE.md).
 
-The test suite stubs the model client; it needs no API key. A real end-to-end
-run of `discord_bot.py`, `hindsight.py`, or `parse_fourthought.py` requires
-credentials and the personal-archive inputs, which are not in the repository —
-do not claim live model results from a stubbed run.
+Core unit tests substitute the model transport and need no API key; GNN tests use
+real parser/checker processes. Optional Discord/TensorFlow/PDF/browser components
+need genuine prepared runtimes and, for live operations, owner-approved inputs and
+credentials. A skipped component or historical smoke does not qualify current source.
+Never infer privacy authorization from a prompt label or claim live results from
+transport substitutions.
 
 ## Boundaries
 
 - No secrets in the tree. Credentials come from environment variables
   (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `DISCORD_BOT_KEY`,
   `AIRTABLE_API_KEY`).
-- `iris_apparently.py` is a sketch: a training run needs a
-  `text, source_id, timestamp` CSV that is not committed. Do not claim
-  training results.
+- `iris_apparently.py` retains a same-sequence reconstruction objective, not a
+  qualified causal next-token model. Its current component changes remain unqualified
+  without real TensorFlow/sklearn proof; full training needs a steward-authorized
+  `text,source_id,timestamp` dataset and private `--output-dir`.
 - Discord channel IDs are hardcoded for the original server layout; do not
   generalize behavioral claims beyond that layout.
 

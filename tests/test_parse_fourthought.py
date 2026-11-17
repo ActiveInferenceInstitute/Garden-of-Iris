@@ -27,9 +27,19 @@ def test_chunk_text_default_limit_is_3000():
 
 
 def test_classify_claim_matches_expected_format():
-    assert parse_fourthought.classify_claim(
-        "The world will continue on well past 2042, PREDICTION"
-    ) == ("The world will continue on well past 2042", "PREDICTION")
+    examples = [
+        line
+        for paragraph in parse_fourthought.EXPLANATION.split("\n\n")
+        if "\n" in paragraph
+        for line in paragraph.splitlines()
+        if line.strip()
+    ]
+    assert examples
+    for example in examples:
+        thought, separator, kind = example.rpartition(",")
+        assert separator and thought.strip()
+        assert kind.strip() in {"PREDICTION", "REFLECTION", "STATEMENT", "QUESTION"}
+        assert parse_fourthought.classify_claim(example) == (thought.strip(), kind.strip())
 
 
 def test_classify_claim_pattern_is_uppercase_only():
@@ -97,3 +107,51 @@ def test_main_prints_classified_thoughts(monkeypatch, capsys):
     assert "A prediction" in out
     assert "PREDICTION" in out
     assert "junk" not in out
+
+
+@pytest.mark.parametrize("text", ["", " \n ", "Sentence. "])
+def test_empty_segments_are_safe_and_empty_input_never_calls_model(monkeypatch, text):
+    calls = []
+    monkeypatch.setattr(iris_llm, "chat_completion", _stub_chat_completion(calls, [["Done, STATEMENT"]]))
+    cleaned = parse_fourthought.clean_text(text)
+    lines = parse_fourthought.parse_thoughts(cleaned)
+    if cleaned:
+        assert lines == ["Done, STATEMENT"]
+        assert calls
+    else:
+        assert lines == []
+        assert not calls
+
+
+def test_empty_extraction_is_a_cli_failure_before_provider(monkeypatch, capsys):
+    monkeypatch.setattr(parse_fourthought, "extract_text_from_pdf", lambda path: "")
+    monkeypatch.setattr(iris_llm, "chat_completion", lambda *a, **k: pytest.fail("empty provider request"))
+    assert parse_fourthought.main(["image-only.pdf"]) == 1
+    assert "No extractable text" in capsys.readouterr().err
+
+
+def test_all_invalid_classifications_fail_but_partial_results_remain_visible(monkeypatch, capsys):
+    monkeypatch.setattr(parse_fourthought, "extract_text_from_pdf", lambda path: "Text")
+    monkeypatch.setattr(parse_fourthought, "parse_thoughts", lambda text: ["junk", "also junk"])
+    assert parse_fourthought.main(["paper.pdf"]) == 1
+    captured = capsys.readouterr()
+    assert "Rejected 2" in captured.err
+    assert "No valid classifications" in captured.err
+    monkeypatch.setattr(parse_fourthought, "parse_thoughts", lambda text: ["A thought, STATEMENT", "junk"])
+    assert parse_fourthought.main(["paper.pdf"]) == 0
+    captured = capsys.readouterr()
+    assert "A thought" in captured.out
+    assert "Rejected 1" in captured.err
+
+
+
+
+def test_nullable_raw_response_uses_canonical_error(monkeypatch):
+    monkeypatch.setattr(iris_llm, "chat_completion", _stub_chat_completion([], [[None]]))
+    with pytest.raises(iris_llm.ModelOutputError):
+        parse_fourthought.parse_thoughts("text")
+
+
+@pytest.mark.parametrize("line", [", QUESTION", "   , STATEMENT"])
+def test_empty_thought_is_rejected(line):
+    assert parse_fourthought.classify_claim(line) is None

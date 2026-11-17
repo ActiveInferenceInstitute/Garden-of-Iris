@@ -203,3 +203,37 @@ specification core. Findings and verification are recorded in
 - [x] **Sidecar documentation paths.** `.aii/config.yaml` uses
   sidecar-relative paths and its generated guides were refreshed.
   ✓ `354dc4e` (#13)
+
+## Bounded engineering qualification (2026-11-13)
+
+- [x] Core client refusal, parser helpers, bound hindsight cache/augmentation,
+  archive schema/private-stdout and gate argument/syntax controls have passed their
+  focused offline tests. Actual gate, archive and argument/help processes were
+  exercised separately; no provider, archive sweep or training run was performed.
+- [x] The unchanged GNN pin uses checked standalone bootstrap bytes, an independent
+  complete manifest and a real parser/checker lifetime with exit revalidation.
+  Source controls and a genuine installed-origin local-exemplar verdict passed
+  separately. The exemplar remains reference evidence, not an authored Garden model.
+- [ ] Current Discord and TensorFlow/sklearn component acceptance needs prepared
+  actual runtimes. Real PDF/browser and Discord client/portal surfaces remain
+  prerequisite/authorization-held; source/unit properties are not visual/live proof.
+- [ ] Privacy, consent, calendar/DST, objective/evaluation and planned-output scope
+  remain named steward/maintainer decisions. The existing research/service/billing
+  and coordinated pin-update obligations above stay open.
+- [x] Canonical sidecar projections were regenerated and completeness-validated.
+  Repository documentation references are artifact paths, not escaping sidecar-doc
+  paths. The exact generated public-safe projections are applied.
+- [ ] Generated gate inventory/measurements require owner-authorized actual measurement.
+  The existing `after` receipt records the old syntax command; the canonical report
+  renderer refuses that drift. Historical receipts are preserved, not relabeled.
+- [ ] Publishing/Journal adoption needs its owner's immutable qualified revision
+  and authorization; do not copy a dirty producer or rewrite recorded digests.
+
+## Canonical sidecar regeneration — 2026-11-16
+
+- [x] Regenerated the five projections from current metadata with the canonical
+  producer after its path-base and Markdown repairs. Completeness validation passed;
+  applied documents preserve the generator's exact bytes. `docs[]` is explicitly
+  sidecar-relative, unlike repository-relative artifact paths.
+- [ ] The stale gate measurement, Publishing-owner and component/native/scientific
+  prerequisites above remain open. Projection generation does not qualify them.

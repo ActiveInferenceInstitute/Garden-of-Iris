@@ -3,6 +3,10 @@
 import csv
 import sys
 import types
+import json
+
+import pandas as pd
+import hindsight
 
 import text_process
 import twitter_archive
@@ -84,3 +88,38 @@ def test_twitter_archive_main_writes_csv(tmp_path):
 def test_twitter_archive_main_reports_missing_file(tmp_path, capsys):
     assert twitter_archive.main([str(tmp_path / "absent.js"), str(tmp_path / "out.csv")]) == 1
     assert "Error reading" in capsys.readouterr().out
+
+
+def test_empty_archive_has_schema_and_is_consumed_by_hindsight(tmp_path):
+    archive = tmp_path / "tweets.js"
+    archive.write_text("window.YTD.tweets.part0 = []", encoding="utf-8")
+    output = tmp_path / "twitter.csv"
+    assert twitter_archive.main([str(archive), str(output)]) == 0
+    assert output.read_text(encoding="utf-8").strip() == ",".join(twitter_archive.FIELDS)
+    thoughts = tmp_path / "thoughts.csv"
+    pd.DataFrame([{
+        "Post date": "01/02/24 03:00 PM", "Good": "+1\n-0",
+        "Thought": "Synthetic thought", "Privacy": 0, "Truth": 50, "Type": "STATEMENT",
+    }]).to_csv(thoughts, index=False)
+    merged = hindsight.load_merged_data(thoughts, output)
+    assert merged["Thought"].tolist() == ["Synthetic thought"]
+    assert str(merged["Post date"].dt.tz) == "US/Pacific"
+    assert str(merged["retweet_count"].dtype) == "Int64"
+
+
+def test_archive_stdout_does_not_expose_selected_or_extra_record_text(tmp_path, capsys):
+    tweet = {
+        "id": "1", "created_at": "Tue Jan 02 23:00:00 +0000 2024",
+        "full_text": "PRIVATE_SELECTED_SENTINEL", "retweet_count": "0",
+        "favorite_count": "1", "lang": "en", "extra": "PRIVATE_EXTRA_SENTINEL",
+    }
+    source = tmp_path / "tweets.js"
+    source.write_text("window.YTD.tweets.part0 = " + json.dumps([{"tweet": tweet}]), encoding="utf-8")
+    output = tmp_path / "tweets.csv"
+    assert twitter_archive.main([str(source), str(output)]) == 0
+    captured = capsys.readouterr().out
+    assert "PRIVATE_SELECTED_SENTINEL" not in captured
+    assert "PRIVATE_EXTRA_SENTINEL" not in captured
+    frame = pd.read_csv(output)
+    assert list(frame.columns) == list(twitter_archive.FIELDS)
+    assert frame["full_text"].tolist() == ["PRIVATE_SELECTED_SENTINEL"]

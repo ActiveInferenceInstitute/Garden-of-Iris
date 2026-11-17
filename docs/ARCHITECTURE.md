@@ -7,50 +7,17 @@ in the repository, that is stated explicitly.
 
 ## Overview
 
-The repository is a loose collection of experimental tools built around one
-idea: **Iris**, a language model trained on community contributions and
-organized by the **FourThought dialectic**. The components form an informal
-pipeline:
+The repository is a loose collection of experimental tools around **Iris** and
+the **FourThought dialectic**, not an end-to-end trained-model pipeline.
 
-```
-                     +---------------------------+
-                     |   sources of raw thought  |
-                     +---------------------------+
-                       |                      |
-       Twitter archive                 FourThought dump
-       (data/tweets.js)                (prophet_thought_dump_ALL_THOUGHTS_2023.csv)
-                       |                      |
-                       v                      v
-              twitter_archive.py        parse_fourthought.py
-              (twitter_archive.csv)     (web/PDF -> thought types)
-                       |                      |
-                       +----------+-----------+
-                                  |
-                                  v
-                        +------------------+
-                        |   hindsight.py  |
-                        |  summarization  |
-                        +------------------+
-                          |          |
-                          v          v
-                   summaries    training data
-                   (daily/      (temporal_iris.csv,
-                    weekly/      weekly_iris.csv,
-                    monthly/     monthly_iris.csv)
-                    seasonal)
-                                  |
-                                  v
-                     +---------------------------+
-                     |      iris_apparently.py   |
-                     |  "DemocraticLLM" (sketch) |
-                     +---------------------------+
-                                  |
-                                  v
-                     +---------------------------+
-                     |      discord_bot.py       |
-                     |  Iris the Discord oracle  |
-                     +---------------------------+
-```
+| Component | Actual input → output | Consumer / boundary |
+| --- | --- | --- |
+| `twitter_archive.py` | Twitter JS archive → six-column Twitter CSV | `hindsight.py`, alongside an independently supplied FourThought export |
+| `parse_fourthought.py` | Web/PDF text → printed thought/type pairs | Does not create the FourThought export consumed by hindsight |
+| `hindsight.py` | Authorized archives → bound summaries and `Prompt,Completion` pairs | These pairs are not the sketch's required training schema |
+| `iris_apparently.py` | Separate `text,source_id,timestamp` dataset → private sketch bundle | No trained-weight consumer in the Discord bot; current component proof remains required |
+| `discord_bot.py` | Discord messages, chat CSV and tarot inputs → remote-model interactions | Does not load the sketch's weights |
+| `text_process.py` | Independent text input → sentence-pair CSV | Separate data utility |
 
 The only tracked training data in the repository are
 [`data/semantic-iris.csv`](DATA.md#datasemantic-iriscsv) and
@@ -80,19 +47,22 @@ Each thought also carries two voting dimensions in the FourThought data:
 ### iris_llm.py — OpenRouter model client
 
 Every model call in the repository goes through this module. It builds the
-current OpenAI SDK client (`openai >= 1.0`) with
+current OpenAI SDK client (`openai >= 3.45.0`) with
 `base_url=https://openrouter.ai/api/v1`, resolves the API key from
 `OPENROUTER_API_KEY` (falling back to `OPENAI_API_KEY`), and sets the
 OpenRouter attribution headers (`HTTP-Referer`, `X-OpenRouter-Title`).
 
 | Helper | Use |
 | --- | --- |
-| `chat(messages, model, **params)` | Send a chat conversation; returns the first choice's text |
-| `complete(prompt, model, **params)` | Send one prompt as a single user message; returns the text |
-| `chat_completion(messages, model, **params)` | Raw SDK response, for call sites that read every choice |
+| `chat(messages, model, **params)` | Returns stripped, validated text from the first choice; a bad first choice is refused even if later choices are usable |
+| `complete(prompt, model, **params)` | Sends one user message and applies the same first-choice contract |
+| `chat_completion(messages, model, **params)` | Returns the raw SDK response |
+| `response_texts(response)` | Validates every requested choice rather than silently dropping invalid ones |
 
 `RateLimitError` and `APITimeoutError` are re-exported for retry handling.
 There is no legacy pre-1.0 shim: the scripts use this surface directly.
+`ModelOutputError` rejects absent choices, null/non-string/blank content and refusal
+responses. It neither fabricates an answer nor prints private response details.
 
 ### `discord_bot.py` — the Iris Discord bot
 
@@ -120,7 +90,9 @@ chat conversation, and sends the response (chunked at 2000 characters).
 folded into a chat conversation along with recent channel history, truncated
 to a 20,000-character budget.
 
-**Slash commands.**
+**Prefix commands.** These use `commands.Bot(command_prefix='/')`, not registered
+Discord slash/app commands. The current Discord source changes still need a prepared
+real-component runtime and, separately, approved live client/portal qualification.
 
 | Command | Aliases | What it does |
 | --- | --- | --- |
@@ -179,16 +151,27 @@ usage.
 
 | Function | Output file | Granularity |
 | --- | --- | --- |
-| `create_daily_summaries` | `daily_summaries.csv` (`Date`, `Summary`) | Per day |
-| `create_weekly_summaries` | `weekly_summaries.csv` (`Week_Start_Date`, `Summary`) | Resampled Monday weeks |
-| `create_monthly_summaries` | `monthly_summaries.csv` (`Month_Year`, `Summary`) | Per month |
+| `create_daily_summaries` | `daily_summaries.csv` (`Date`, `Summary`, `Binding`, `Context`) | Per day |
+| `create_weekly_summaries` | `weekly_summaries.csv` (`Week_Start_Date`, `Summary`, `Binding`, `Context`) | Resampled Monday weeks |
+| `create_monthly_summaries` | `monthly_summaries.csv` (`Month_Year`, `Summary`, `Binding`, `Context`) | Per month |
 | `create_seasonal_summaries` | prints only | Winter/Spring/Summer/Fall |
 
 Long inputs are chunked (`split_text_into_chunks`, ~4000 chars) and
 recursively summarized before stitching.
 
-**Training-data construction** (prompt randomization over question templates
-and date formats):
+Caches use `iris-summary/v1`: bindings include source/upstream/program/model/policy,
+actual prompt time, request/output and summary digests. A hit reuses the recorded output
+and time; it is not a fresh deterministic inference. Legacy, incomplete or tampered
+caches are refused rather than silently rewritten. Active periods reconcile atomically;
+empty stages make no model request.
+
+The application defaults are `max_attempts=3`, `retry_delay=5`, `timeout=60`, composed
+with finite SDK retries; this is not an overall latency guarantee. Monday-week, month,
+season and privacy semantics remain owner decisions. `--all` includes the unresolved
+seasonal path and is not a qualified archive sweep.
+
+**Training-data construction** uses a local seeded generator (default `0`) for
+question/date templates and records `iris-training-pairs/v1` provenance:
 
 | Function | Output file | Columns |
 | --- | --- | --- |
@@ -235,6 +218,8 @@ between the first `[` and last `]`), extracts
 work; paths can be passed as arguments, defaulting to `data/tweets.js` and
 `twitter_archive.csv`). The `data/tweets.js` input is a personal archive and
 is **not** committed.
+An empty archive still writes the complete header. Ordinary converter stdout does
+not print selected or extra record text; output CSV content remains private.
 
 ### `text_process.py` — sentence-pair builder
 
@@ -254,7 +239,7 @@ timestamps (seconds→year components). The intended training CSV schema is
 `text, source_id, timestamp`, and the training flow lives in `main()`:
 
 ```bash
-python iris_apparently.py path/to/your_csv_file.csv
+python iris_apparently.py path/to/authorized.csv --output-dir path/to/private-bundle
 ```
 
 **Repair (2026-08-02).** The file was previously non-runnable: `layers` was
@@ -278,14 +263,13 @@ classes before definition, and the `model.fit` call did not match
 - removed dead helpers (`create_source_embeddings`, `create_temporal_embeddings`)
   and unused imports.
 
-**Status: structurally repaired and runtime-smoke-tested, but not trained.**
-A TensorFlow 2.x / Python 3.12 run verified: module import, mask shapes, a
-forward pass and one `fit` step on a small model, the no-source fallback
-path, and `main()`'s preprocessing glue (tokenizer, embeddings, splits)
-including a forward pass of the full model configuration. A real training run
-still requires a CSV with `text, source_id, timestamp` columns — no such
-dataset is committed to this repository — and Keras 3 emits benign
-mask-propagation/`build()` warnings for this custom layer stack.
+**Historical smoke, not current acceptance.** The earlier TensorFlow/Python smoke
+covered the then-current import, forward/fit and preprocessing paths. It does not
+qualify the later loss, masking, split/preprocessing or bundle changes. Those require
+an already-prepared real TensorFlow/sklearn runtime and the authored component tests.
+The retained objective is same-sequence reconstruction with full encoder visibility,
+not a qualified causal next-token model. Dataset/objective approval and a full training
+run remain research-owner work; no training result or generalization claim is implied.
 
 ## Environment variables
 
@@ -306,15 +290,16 @@ which also sets OpenRouter attribution headers.
 entry point is `scripts/gate.py`; each arm is one command shared with
 `.github/workflows/ci.yml`: `syntax`, `docs`, `fast`, `tests`, `models`, and
 `gnn`. The `checks` job runs `syntax`, `docs`, `tests`, and `models`; the
-`gnn conformance (pinned)` job runs `gnn`, which installs the parser revision
-pinned in `.github/gnn-pin.json` and follows `.github/GNN.md`.
-Tests stub the model client, so they need no API key or network access.
+`gnn conformance (pinned)` job runs `gnn`, whose reviewed-input/source/installed
+contracts are in `.github/GNN.md`. Model-transport unit substitutions need no API key;
+GNN controls use actual parser/checker processes. Optional component prerequisites
+and live-service acceptance remain separate.
 Arm runtimes and the test inventory are recorded in
 [`_generated/GATES.md`](_generated/GATES.md); see [RUN_GUIDE.md](RUN_GUIDE.md).
 
 ## Caveats
 
-- Model calls use the current OpenAI SDK surface (`openai >= 1.0`) through
+- Model calls use the current OpenAI SDK surface (`openai >= 3.45.0`) through
   `iris_llm.py`; there is no legacy pre-1.0 shim. OpenRouter's chat-completions
   endpoint is the only endpoint used.
 - The original fine-tuned `davinci` model IDs are retired; the model slots in

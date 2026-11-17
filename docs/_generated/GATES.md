@@ -11,7 +11,7 @@ check once with `all` (`syntax docs tests models gnn`).
 
 | Arm | Steps | What it checks |
 | --- | --- | --- |
-| `syntax` | `python -m compileall -q .` | Compile every module (`compileall`); the repository's only lint gate. |
+| `syntax` | `python scripts/check_syntax.py` | Compile authored Python only, pruning installed environments and caches. |
 | `docs` | `python scripts/check_markdown_links.py`<br>`python scripts/gate.py report --check` | Relative markdown links and heading anchors, then generated-number freshness. |
 | `fast` | `python -m pytest tests -q -m not network` | Offline unit suite: `pytest tests/ -m "not network"`. |
 | `tests` | `python -m pytest tests -q` | Whole unit suite: `pytest tests/`. |
@@ -24,13 +24,14 @@ check once with `all` (`syntax docs tests models gnn`).
 
 | File | Tests |
 | --- | --- |
-| `tests/test_data_tools.py` | 5 |
-| `tests/test_gnn_conformance_gate.py` | 15 |
-| `tests/test_hindsight.py` | 4 |
-| `tests/test_iris_llm.py` | 9 |
+| `tests/test_data_tools.py` | 7 |
+| `tests/test_gate_cli.py` | 10 |
+| `tests/test_gnn_conformance.py` | 28 |
+| `tests/test_hindsight.py` | 26 |
+| `tests/test_iris_llm.py` | 16 |
 | `tests/test_no_legacy_api.py` | 2 |
-| `tests/test_parse_fourthought.py` | 12 |
-| **total** | **47** |
+| `tests/test_parse_fourthought.py` | 20 |
+| **total** | **109** |
 
 ## Measured runtimes
 
@@ -46,19 +47,19 @@ These are measurements on one host in one prepared virtualenv, not a CI claim an
 not a freshness claim. Re-measure after changing an arm, then re-run `report`.
 
 - Before receipt: 2026-11-12T13:07:42Z
-- After receipt: 2026-11-12T13:07:53Z
-- Host: macOS-27.0.1-arm64-arm-64bit (arm64)
+- After receipt: 2026-11-17T15:33:21Z
+- Host: macOS-27.2.1-arm64-arm-64bit (arm64)
 - Python: 3.12.16
-- Versions: pytest 9.2.0, openai 3.49.0, pandas 3.1.1
+- Versions: pytest 9.2.0, openai 3.52.0, pandas 3.1.1
 
 | Arm | Before | After | Δ |
 | --- | --- | --- | --- |
-| `syntax` | 0.82s | 0.80s | same command: variance |
-| `docs` | 0.25s | 2.78s | +2.53s |
-| `fast` | — (arm did not exist) | 2.74s | — |
-| `tests` | 8.97s | 2.37s | same command: variance |
-| `models` | 0.45s | 1.30s | same command: variance |
-| `gnn` | 1.79s | 1.22s | -0.57s |
+| `syntax` | 0.82s | 0.21s | -0.61s |
+| `docs` | 0.25s | 1.43s | +1.18s |
+| `fast` | — (arm did not exist) | 21.91s | — |
+| `tests` | 8.97s | 17.14s | same command: variance |
+| `models` | 0.45s | 0.86s | same command: variance |
+| `gnn` | 1.79s | 2.17s | +0.38s |
 
 Δ appears only where the command changed. Where both sides ran the identical
 command the column says `same command: variance`, because one pass per side cannot

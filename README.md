@@ -27,7 +27,7 @@ TensorFlow sketch of an Iris model architecture.
 > shared for study and reuse rather than maintained as production software.
 > They originally targeted the legacy pre-1.0 OpenAI package and fine-tuned
 > `davinci` models that no longer exist. Model calls now use the current
-> OpenAI SDK surface (`openai >= 1.0`) through the in-repo `iris_llm.py`
+> OpenAI SDK surface (`openai >= 3.45.0`) through the in-repo `iris_llm.py`
 > client, which routes every request through **OpenRouter**
 > (`https://openrouter.ai/api/v1`); the retired fine-tuned model slots map to
 > catalog-verified OpenRouter chat models.
@@ -47,20 +47,20 @@ TensorFlow sketch of an Iris model architecture.
 
 | Path | What it is |
 | --- | --- |
-| `discord_bot.py` | Discord bot "Iris": pool summarizers, DM relay, slash commands |
+| `discord_bot.py` | Discord bot "Iris": pool summarizers, DM relay and `/`-prefixed commands; live/component acceptance remains separate |
 | `hindsight.py` | Summarization pipeline: daily → weekly → monthly summaries, plus training-data construction |
-| `parse_fourthought.py` | CLI: parse a URL or PDF into FourThought thought types via OpenAI |
+| `parse_fourthought.py` | CLI: parse URL/PDF text into printed FourThought types via OpenRouter; not a FourThought-export producer |
 | `iris_apparently.py` | Experimental TensorFlow/Keras "DemocraticLLM" transformer sketch (source + temporal embeddings) |
 | `iris_llm.py` | Canonical OpenRouter model client (current `openai` SDK surface): `chat()` and `complete()` |
 | `twitter_archive.py` | Convert a Twitter archive (`data/tweets.js`) to `twitter_archive.csv` |
 | `text_process.py` | Build prompt→completion sentence-pair CSV from a text file (NLTK) |
 | `data/semantic-iris.csv` | Training data: `prompt,completion` pairs |
 | `data/chat-iris.csv` | Training data: `prompt,completion,Source` triples |
-| `tests/` | Pytest suite for `iris_llm`, the parser, the pipeline helpers, and the data tools |
+| `tests/` | Core helpers, optional Discord/sketch components, gate contracts and real GNN source/installed admission |
 | `scripts/gate.py` | The gate: one entry point whose arms (`syntax`, `docs`, `fast`, `tests`, `models`, `gnn`) CI also runs |
 | `scripts/check_markdown_links.py` | Gate helper: validates relative links and heading anchors in all markdown |
 | `scripts/check_openrouter_models.py` | Gate helper: verifies the scripts' model IDs against the live OpenRouter catalog |
-| `scripts/check_gnn_conformance.py` | Gate helper: installs the parser revision pinned in `.github/gnn-pin.json` and verifies the repository's GNN sketches |
+| `scripts/check_gnn_conformance.py` | Gate helper: reviewed bootstrap/manifest admission and guarded pinned parser/checker; explicit no-install source or genuine installed mode |
 | `.github/workflows/ci.yml` | CI: the `checks` job (`syntax`, `docs`, `tests`, `models`) and the `gnn conformance (pinned)` job (`gnn`) |
 | `.aii/config.yaml` | InstituteOS sidecar metadata |
 | `LICENSE` | CC BY 4.0 license text |
@@ -87,9 +87,10 @@ python hindsight.py --all          # full pipeline in order
 python discord_bot.py
 ```
 
-`iris_apparently.py` imports and its training flow is structurally consistent,
-but it is an unverified sketch: training requires TensorFlow and a CSV with
-`text, source_id, timestamp` columns, none of which is committed. See
+`iris_apparently.py` is an unqualified neural sketch, not the bot's trained backend.
+Its current component changes need real TensorFlow/sklearn qualification; full training
+also requires an authorized `text,source_id,timestamp` dataset and private `--output-dir`.
+Historical smoke does not qualify the current source. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#iris_apparentlypy-democraticllm-sketch-repaired-unverified).
 
 ## Requirements
@@ -101,7 +102,7 @@ set is listed in [requirements.txt](requirements.txt):
 pip install -r requirements.txt
 ```
 
-The test suite and CI need only [requirements-dev.txt](requirements-dev.txt):
+Core development dependencies are listed in [requirements-dev.txt](requirements-dev.txt):
 
 ```bash
 pip install -r requirements-dev.txt
@@ -109,10 +110,21 @@ python scripts/gate.py          # default arm: the offline unit suite
 python scripts/gate.py all      # every check, once each (see docs/RUN_GUIDE.md)
 ```
 
+The complete suite additionally needs the optional component runtimes and the reviewed
+GNN inputs described in [tests/README.md](tests/README.md). Missing components/skips do
+not qualify those components. `all` includes network/provisioning paths and is not an
+offline no-install command. Source/installed subset evidence is not hosted acceptance.
+
 Model calls go through `iris_llm.py`, which builds the current `openai` SDK
 client against OpenRouter (https://openrouter.ai/api/v1) and sets the
 OpenRouter attribution headers. Scripts read their credentials from
 environment variables (see [.env.example](.env.example) for a template):
+
+`chat` and `complete` return stripped, validated first-choice text; an invalid first
+choice is refused, not replaced by a later answer. `chat_completion` returns the raw
+response, and `response_texts` validates all requested choices. Empty/refused output
+raises `ModelOutputError`. Archive processing and live credentials require steward
+authorization; a privacy prompt is not a data-exclusion boundary.
 
 | Variable | Used by |
 | --- | --- |

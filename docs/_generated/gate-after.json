@@ -1,13 +1,13 @@
 {
   "schema": "gate-receipt/v1",
   "label": "after",
-  "recorded": "2026-11-12T13:07:53Z",
+  "recorded": "2026-11-17T15:33:21Z",
   "environment": {
-    "host": "macOS-27.0.1-arm64-arm-64bit (arm64)",
+    "host": "macOS-27.2.1-arm64-arm-64bit (arm64)",
     "python": "3.12.16",
     "versions": {
       "pytest": "9.2.0",
-      "openai": "3.49.0",
+      "openai": "3.52.0",
       "pandas": "3.1.1"
     }
   },
@@ -15,9 +15,9 @@
     {
       "arm": "syntax",
       "commands": [
-        "python -m compileall -q ."
+        "python scripts/check_syntax.py"
       ],
-      "wall_s": 0.803,
+      "wall_s": 0.209,
       "ok": true
     },
     {
@@ -26,7 +26,7 @@
         "python scripts/check_markdown_links.py",
         "python scripts/gate.py report --check"
       ],
-      "wall_s": 2.779,
+      "wall_s": 1.43,
       "ok": true
     },
     {
@@ -34,7 +34,7 @@
       "commands": [
         "python -m pytest tests -q -m not network"
       ],
-      "wall_s": 2.738,
+      "wall_s": 21.911,
       "ok": true
     },
     {
@@ -42,7 +42,7 @@
       "commands": [
         "python -m pytest tests -q"
       ],
-      "wall_s": 2.368,
+      "wall_s": 17.143,
       "ok": true
     },
     {
@@ -50,7 +50,7 @@
       "commands": [
         "python scripts/check_openrouter_models.py"
       ],
-      "wall_s": 1.299,
+      "wall_s": 0.861,
       "ok": true
     },
     {
@@ -58,7 +58,7 @@
       "commands": [
         "python scripts/check_gnn_conformance.py"
       ],
-      "wall_s": 1.22,
+      "wall_s": 2.169,
       "ok": true
     }
   ]
