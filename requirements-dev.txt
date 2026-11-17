@@ -2,3 +2,9 @@
 openai>=3.46.0
 pandas
 pytest
+# Runtime imports of the pinned GNN parser, which tests/test_gnn_conformance.py
+# loads from the reviewed GNN_PACKAGE_ROOT (same set as RUNTIME_DEPENDENCIES in
+# scripts/check_gnn_conformance.py).
+defusedxml
+psutil
+pyyaml
