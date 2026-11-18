@@ -42,6 +42,6 @@ Numbers that a script can produce live in a generated document, never in prose:
 
 | Path | Guide |
 | --- | --- |
-| `.github/` | [`.github/README.md`](../.github/README.md), [`.github/GNN.md`](../.github/GNN.md) |
+| `.github/` | [`.github/WORKFLOWS.md`](../.github/WORKFLOWS.md), [`.github/GNN.md`](../.github/GNN.md) |
 | `tests/` | [`tests/README.md`](../tests/README.md) |
 | `.aii/` | [`.aii/README.md`](../.aii/README.md), [`.aii/AGENTS.md`](../.aii/AGENTS.md), [`.aii/docs/INTEGRATION.md`](../.aii/docs/INTEGRATION.md) |
