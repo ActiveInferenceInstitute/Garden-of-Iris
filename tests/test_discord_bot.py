@@ -5,21 +5,21 @@ bot login, provider request, Airtable request or real private input is used.
 """
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import importlib.util
-from pathlib import Path
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from types import SimpleNamespace
 
 import pandas as pd
 import pytest
 
-
 discord = pytest.importorskip("discord")
 pyairtable = pytest.importorskip("pyairtable")
 pytest.importorskip("tqdm")
 from discord.ext import commands
+
 import iris_llm
 
 

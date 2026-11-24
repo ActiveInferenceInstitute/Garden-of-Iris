@@ -1,13 +1,13 @@
 """Tests for the data tools: text_process and twitter_archive."""
 
 import csv
+import json
 import sys
 import types
-import json
 
 import pandas as pd
-import hindsight
 
+import hindsight
 import text_process
 import twitter_archive
 

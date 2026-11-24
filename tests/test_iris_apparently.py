@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 tf = pytest.importorskip("tensorflow")
 pytest.importorskip("sklearn")
 import iris_apparently as sketch

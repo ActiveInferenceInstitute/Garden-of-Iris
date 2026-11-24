@@ -9,8 +9,8 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
-import iris_llm
 import hindsight
+import iris_llm
 
 
 def test_split_text_into_chunks_balances_chunks():
