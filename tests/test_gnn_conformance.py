@@ -1,7 +1,7 @@
 """Real-file/process GNN admission controls; no installs, network or fake parsers.
 
 The parent supplies GNN_BOOTSTRAP, GNN_SOURCE_MANIFEST, GNN_PACKAGE_ROOT and
-GNN_EXEMPLAR from its independently reviewed v5.0.3 delivery. The module is
+GNN_EXEMPLAR from its independently reviewed v5.1.0 delivery. The module is
 selected only by `--gnn-admission` (the `admission` gate arm); there, missing
 inputs are failed prerequisites, not skips or installed-mode qualification. All mutable
 copies and process output belong to pytest's disposable temporary root.

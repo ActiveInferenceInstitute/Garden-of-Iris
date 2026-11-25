@@ -32,10 +32,10 @@ from types import ModuleType
 
 ROOT = Path(__file__).resolve().parent.parent
 PIN_PATH = ROOT / ".github" / "gnn-pin.json"
-PIN_COMMIT = "8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1"
-PIN_TAG = "v5.0.3"
+PIN_COMMIT = "75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf"
+PIN_TAG = "v5.1.0"
 BOOTSTRAP_SHA256 = "f638d4c01fe7de31e43d793e59bf382d0c3d1a82f365c59238334a2b40adfb37"
-MANIFEST_SHA256 = "17a35bb2114e76a38119128d290d12377cb641652d70788000482366dca0a14a"
+MANIFEST_SHA256 = "43b33c0b2b40386afa3f306fec4cc13bc1fd7c3b570fbf11d5008bad5c8e6b51"
 RUNTIME_DEPENDENCIES = ("defusedxml", "psutil", "pyyaml")
 EXEMPLAR_RELPATH = "input/gnn_files/basics/static_perception.md"
 
@@ -137,7 +137,7 @@ def verify(
         or pin.commit != PIN_COMMIT
         or pin.tag != PIN_TAG
     ):
-        raise ConformanceError("source-pin-mismatch", "the reviewed resources bind exactly Garden's v5.0.3 pin")
+        raise ConformanceError("source-pin-mismatch", "the reviewed resources bind exactly Garden's v5.1.0 pin")
     print(f"pin: {pin.repository} {pin.tag} ({pin.commit}), schema {pin.schema}", flush=True)
     if install_parser:
         print(f"installing: {install(pin)}", flush=True)
@@ -224,7 +224,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--bootstrap", type=Path, default=os.environ.get("GNN_BOOTSTRAP"),
                         help="independently reviewed bootstrap file (GNN_BOOTSTRAP)")
     parser.add_argument("--source-manifest", type=Path, default=os.environ.get("GNN_SOURCE_MANIFEST"),
-                        help="independent complete v5.0.3 source manifest (GNN_SOURCE_MANIFEST)")
+                        help="independent complete v5.1.0 source manifest (GNN_SOURCE_MANIFEST)")
     parser.add_argument("--origin-mode", choices=("installed", "source"),
                         default=os.environ.get("GNN_ORIGIN_MODE", "installed"))
     parser.add_argument("--package-root", type=Path, default=os.environ.get("GNN_PACKAGE_ROOT"),

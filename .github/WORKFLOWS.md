@@ -14,8 +14,8 @@
 - [`dependabot.yml`](dependabot.yml) — dependency update configuration.
 - [`gnn-pin.json`](gnn-pin.json) — the canonical GNN pin, schema
   `gnn-importer-pin/v1`: `ActiveInferenceInstitute/Generalized_Notation_Notation`
-  at tag `v5.0.3`, revision `8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`,
-  recorded 2026-11-12. It is the only source of the pin; the conformance code
+  at tag `v5.1.0`, revision `75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf`,
+  recorded 2026-11-24. It is the only source of the pin; the conformance code
   reads it and fails on a schema, repository, or revision mismatch.
 - [`GNN.md`](GNN.md) — what the pinned GNN conformance arm checks.
 
