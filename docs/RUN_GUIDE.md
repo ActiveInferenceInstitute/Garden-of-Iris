@@ -78,8 +78,8 @@ unavailable, so local gate runs are the only executable gate; a green local
 - Pin file: [`.github/gnn-pin.json`](../.github/gnn-pin.json), schema
   `gnn-importer-pin/v1`.
 - Pinned revision: `ActiveInferenceInstitute/Generalized_Notation_Notation` at
-  tag `v5.0.3`, revision `8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`, recorded
-  2026-11-12.
+  tag `v5.1.0`, revision `75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf`, recorded
+  2026-11-24.
 - Pointer: [`.github/GNN.md`](../.github/GNN.md) records what the conformance
   job parses and which sketch set counts.
 - Implementation: `scripts/check_gnn_conformance.py`; pin reading uses independently

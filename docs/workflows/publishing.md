@@ -53,7 +53,7 @@ arm_docs.py  08a83f132ce9b36cd538a8ace8bf718c1eefd2d6a3f2747baa6f10c1af6ccfaf
 arm_bench.py  188e620cbb0ba5f5c124c5390b4d2089642956166ed1a115947666b933097017
 cli.py  4930bfce0fb9a4cfa4746f98b63bde83cc7fe6957bbe1e832b30644a3e2d7872
 common.py  ccf0e56d1a9466e3690ace00a6afbef570813762e889cd03cd470c7576753880
-gnn-pin.json  eb83f7f1b73eb31e116bd05b1f457dd07e6874a2a4ba0e9e95e5bc91f094cd55
+gnn-pin.json  b47c1d77ad9a3e4d08ada1a3e631f0b677b8e4f50a5b68ba25052d161925776e
 ```
 
 `python scripts/gate.py docs` checks the schema and complete digest block, runs

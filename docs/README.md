@@ -44,7 +44,7 @@ key `checks` (display name `checks`) runs `syntax`, `docs`, `tests`, and
 `gnn conformance (pinned)`) runs `gnn`. The GNN pin is
 [`.github/gnn-pin.json`](../.github/gnn-pin.json) — schema
 `gnn-importer-pin/v1`, `ActiveInferenceInstitute/Generalized_Notation_Notation`
-at `v5.0.3` (`8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`) — and
+at `v5.1.0` (`75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf`) — and
 [`.github/GNN.md`](../.github/GNN.md) records what the conformance arm parses.
 Commands, per-arm prerequisites, and the hosted-CI caveat are in
 [RUN_GUIDE.md](RUN_GUIDE.md).

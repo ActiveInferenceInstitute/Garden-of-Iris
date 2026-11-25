@@ -129,13 +129,6 @@ On request, all model calls were migrated from the retired OpenAI fine-tuned
   Blocked outside this repository. Owner: Institute organization billing
   administrator to restore Actions, then repository maintainer to rerun
   `.github/workflows/ci.yml`; local gate evidence remains separate.
-- **Update the pinned GNN parser.** `.github/gnn-pin.json` still selects
-  `v5.0.3` at `8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`, not released
-  `v5.1.0` at `75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf`. Owner: repository
-  maintainer, coordinating with the Publishing contract owner because
-  `docs/workflows/publishing.md` digest-pins the canonical copy. Blocked on
-  that coordinated pin/digest update and conformance verification, not on
-  authored GNN content: this repository has no model sketch.
 - **Resolve the eight planned hindsight functions.** `hindsight.py`'s
   `create_yearly_summaries` through `create_trackable_summaries` remain
   `pass` bodies; documenting them under N2 did not implement them.
@@ -237,3 +230,14 @@ specification core. Findings and verification are recorded in
   sidecar-relative, unlike repository-relative artifact paths.
 - [ ] The stale gate measurement, Publishing-owner and component/native/scientific
   prerequisites above remain open. Projection generation does not qualify them.
+
+## GNN pin at v5.1.0 — 2026-11-24
+
+- [x] `.github/gnn-pin.json` now selects `v5.1.0` at
+  `75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf` (recorded 2026-11-24), previously
+  `v5.0.3` at `8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`. The reviewed-input
+  conformance script binds the v5.1.0 source manifest
+  (`43b33c0b2b40386afa3f306fec4cc13bc1fd7c3b570fbf11d5008bad5c8e6b51`) with its
+  bootstrap digest unchanged, and the `gnn-pin.json` digest in
+  `docs/workflows/publishing.md` moved with the pin. Hosted delivery of the
+  reviewed resources remains a separate prerequisite.
