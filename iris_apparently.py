@@ -12,10 +12,10 @@ remains an unverified sketch. Training it requires TensorFlow and a CSV with
 committed to this repository.
 """
 
-import sys
 import argparse
-import json
 import hashlib
+import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -236,7 +236,7 @@ def point_wise_feed_forward_network(d_model, dff):
 # Define the necessary layers and components for the Iris model
 class MultiHeadAttention(layers.Layer):
     def __init__(self, d_model, num_heads):
-        super(MultiHeadAttention, self).__init__()
+        super().__init__()
         self.num_heads = num_heads
         self.d_model = d_model
 
@@ -290,7 +290,7 @@ class MultiHeadAttention(layers.Layer):
 
 class EncoderLayer(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads, dff, rate=0.1):
-        super(EncoderLayer, self).__init__()
+        super().__init__()
 
         self.mha1 = MultiHeadAttention(d_model, num_heads)
         self.mha2 = MultiHeadAttention(d_model, num_heads)
@@ -327,7 +327,7 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 class DecoderLayer(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads, dff, rate=0.1):
-        super(DecoderLayer, self).__init__()
+        super().__init__()
 
         self.mha1 = MultiHeadAttention(d_model, num_heads)
         self.mha2 = MultiHeadAttention(d_model, num_heads)
@@ -369,7 +369,7 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 class Decoder(tf.keras.layers.Layer):
     def __init__(self, num_layers, d_model, num_heads, dff, target_vocab_size, max_position_encoding, rate=0.1):
-        super(Decoder, self).__init__()
+        super().__init__()
 
         self.d_model = d_model
         self.num_layers = num_layers
@@ -398,16 +398,16 @@ class Decoder(tf.keras.layers.Layer):
                 x, enc_output, training=training, look_ahead_mask=look_ahead_mask,
                 padding_mask=padding_mask, source_embeddings=source_embeddings)
 
-            attention_weights['decoder_layer{}_block1'.format(i + 1)] = block1
-            attention_weights['decoder_layer{}_block2'.format(i + 1)] = block2
-            attention_weights['decoder_layer{}_block3'.format(i + 1)] = block3
+            attention_weights[f'decoder_layer{i + 1}_block1'] = block1
+            attention_weights[f'decoder_layer{i + 1}_block2'] = block2
+            attention_weights[f'decoder_layer{i + 1}_block3'] = block3
 
         return x, attention_weights
 
 
 class Encoder(tf.keras.layers.Layer):
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, max_position_encoding, rate=0.1):
-        super(Encoder, self).__init__()
+        super().__init__()
 
         self.d_model = d_model
         self.num_layers = num_layers
@@ -434,8 +434,8 @@ class Encoder(tf.keras.layers.Layer):
         for i in range(self.num_layers):
             x, block1, block2 = self.enc_layers[i](x, training=training, mask=mask, source_embeddings=source_embeddings)
 
-            attention_weights['encoder_layer{}_block1'.format(i + 1)] = block1
-            attention_weights['encoder_layer{}_block2'.format(i + 1)] = block2
+            attention_weights[f'encoder_layer{i + 1}_block1'] = block1
+            attention_weights[f'encoder_layer{i + 1}_block2'] = block2
 
         return x, attention_weights
 
@@ -444,7 +444,7 @@ class DemocraticLLM(tf.keras.Model):
     def __init__(self, num_layers=6, d_model=512, num_heads=8, dff=2048,
                  input_vocab_size=None, target_vocab_size=None, max_position_encoding=256,
                  num_sources=None, temporal_emb=None, dropout_rate=0.1):
-        super(DemocraticLLM, self).__init__()
+        super().__init__()
 
         self.d_model = d_model
         self.encoder = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, max_position_encoding, dropout_rate)

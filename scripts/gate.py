@@ -262,7 +262,7 @@ def receipt_body(label: str, arms: dict[str, Arm], order: tuple[str, ...]) -> di
     return {
         "schema": RECEIPT_SCHEMA,
         "label": label,
-        "recorded": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "recorded": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "environment": {
             "host": f"{platform.platform()} ({platform.machine()})",
             "python": platform.python_version(),

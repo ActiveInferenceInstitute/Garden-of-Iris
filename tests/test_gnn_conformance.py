@@ -19,7 +19,6 @@ from pathlib import Path
 
 import pytest
 
-
 pytestmark = pytest.mark.gnn_resources
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -26,7 +26,8 @@ import threading
 import openai
 
 # Re-exported so scripts can retry without importing the SDK themselves.
-from openai import APITimeoutError, RateLimitError
+APITimeoutError = openai.APITimeoutError
+RateLimitError = openai.RateLimitError
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_REFERER = "https://github.com/ActiveInferenceInstitute/Garden-of-Iris"

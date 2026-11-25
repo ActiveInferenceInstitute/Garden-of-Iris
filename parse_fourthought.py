@@ -65,8 +65,8 @@ ASSISTANT_ACK = (
 def extract_text_from_url(url):
     """Fetch a page's visible text with headless Selenium + BeautifulSoup."""
     # Imported here so the module imports without a browser stack installed.
-    from selenium import webdriver
     from bs4 import BeautifulSoup
+    from selenium import webdriver
 
     options = webdriver.ChromeOptions()
     options.add_argument('headless')

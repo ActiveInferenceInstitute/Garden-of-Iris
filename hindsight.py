@@ -1,16 +1,15 @@
-import os
-import re
-import csv
-import sys
-import time
-import random
 import hashlib
 import json
+import random
+import re
+import sys
 import tempfile
-from pathlib import Path
-import pandas as pd
+import time
 from datetime import datetime
-from itertools import islice
+from pathlib import Path
+
+import pandas as pd
+
 import iris_llm
 
 # Model calls go through iris_llm (OpenRouter; OPENROUTER_API_KEY, falling back
@@ -311,12 +310,12 @@ def create_daily_summaries(df):
                 text += f"Dialectic: {platform}\n"
                 text += f"Timestamp: {index.strftime('%m/%d/%y %I:%M %p')}\n"
                 text += f"Thought: {thought_text}\n"
-                text += f"Sentiment: " + str(positivity) + "\n"
+                text += "Sentiment: " + str(positivity) + "\n"
                 text += f"Good Votes: {row['Positive']}\n"
                 text += f"Bad Votes: {abs(row['Negative'])}\n"
                 text += f"Average Certainty: {row['Truth']}\n"
                 text += f"Privacy: {privacy_status}\n"
-                text += f"Speaker: John Ash\n"
+                text += "Speaker: John Ash\n"
                 text += f"Thought Type: {row['Type']}\n\n"
 
             elif platform == 'twitter':

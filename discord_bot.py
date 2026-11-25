@@ -1,31 +1,20 @@
+import asyncio
 import os
-import re
-import sys
 import random
-import time
-import datetime
-import dateutil
+import re
 import tempfile
 import threading
 from pathlib import Path
-from parse_fourthought import clean_text, extract_text_from_url
 
-import iris_llm  # OpenRouter model client (current openai SDK surface)
 import discord
-import asyncio
-import aiohttp
-import json
-
 import pandas as pd
-
+from discord.ext import commands
+from discord.ui import Button, Modal, TextInput, View
+from pyairtable import Table
 from tqdm import tqdm
 
-from discord import app_commands
-from discord.utils import get
-from pprint import pprint
-from pyairtable import Table
-from discord.ui import Button, View, TextInput, Modal
-from discord.ext import commands
+import iris_llm  # OpenRouter model client (current openai SDK surface)
+from parse_fourthought import clean_text, extract_text_from_url
 
 intents = discord.Intents.default()
 intents.members = True
@@ -847,7 +836,7 @@ async def ask_group(ctx, *, question=""):
 	# Get people in Garden
 	responses = []
 	views = []
-	t_embed = discord.Embed(title = "Time Limit", description = f"Please reply within 45 minutes of receipt")
+	t_embed = discord.Embed(title = "Time Limit", description = "Please reply within 45 minutes of receipt")
 	i_url = "https://media.discordapp.net/attachments/989662771329269893/1019641048407998464/chrome_Drbki2l0Qq.png"
 
 	# Message Users
@@ -877,7 +866,7 @@ async def ask_group(ctx, *, question=""):
 			joined_answers += t + "\n\n"
 
 	if len(joined_answers.strip()) == 0:
-		j_embed = discord.Embed(title = "No Responses", description = f"No responses provided to summarize")
+		j_embed = discord.Embed(title = "No Responses", description = "No responses provided to summarize")
 		await ctx.send(embed=j_embed)
 		return
 
