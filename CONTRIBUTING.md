@@ -42,9 +42,9 @@ If you edit `docs/` or this file:
 
 - Prefer relative links between repository files.
 - Keep table columns aligned with the actual CSV/JSON schemas (see
-  [docs/DATA.md](docs/DATA.md)).
+  [docs/architecture/DATA.md](docs/architecture/DATA.md)).
 - State clearly when a script is a non-runnable sketch rather than implying
-  it works (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+  it works (see [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)).
 
 ## License
 

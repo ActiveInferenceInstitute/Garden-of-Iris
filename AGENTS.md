@@ -3,7 +3,7 @@
 Experimental toolkit for **Iris** (a collective-intelligence language model)
 and the FourThought dialectic data pipeline. Stewarded by the Active Inference
 Institute; published under CC BY 4.0. See [README.md](README.md) and
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the human-facing overview.
+[docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) for the human-facing overview.
 
 ## Layout and contracts
 
@@ -20,7 +20,7 @@ Institute; published under CC BY 4.0. See [README.md](README.md) and
   `prophet_thought_dump_ALL_THOUGHTS_2023.csv`, `tarot_text.csv`) and
   generated CSVs are untracked — never commit them.
 - FourThought semantics (thought types, truth/good voting) are described in
-  `docs/ARCHITECTURE.md` and `docs/DATA.md`; keep those descriptions in sync
+  `docs/architecture/ARCHITECTURE.md` and `docs/architecture/DATA.md`; keep those descriptions in sync
   with the code.
 
 ## Gates (run before publishing)

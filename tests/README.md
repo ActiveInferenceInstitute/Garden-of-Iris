@@ -41,6 +41,6 @@ private fixtures outside the consumer's model-discovery root and installs nothin
 Source-mode proof does not replace separate genuine installed-origin qualification,
 and neither establishes native execution or scientific validity.
 
-See [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) and
+See [`../docs/architecture/ARCHITECTURE.md`](../docs/architecture/ARCHITECTURE.md) and
 [`../docs/RUN_GUIDE.md`](../docs/RUN_GUIDE.md). Generated historical timing/inventory
 receipts are not current proof when their source or command population has changed.

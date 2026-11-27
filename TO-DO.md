@@ -19,7 +19,7 @@ Sections are defined as:
   variables, license. `README.md` ✓ `2b3f778`
 - [x] **M2 — No documentation system at all.** Create a `docs/` folder with an
   index, a component/architecture overview, and a data reference.
-  `docs/README.md`, `docs/ARCHITECTURE.md`, `docs/DATA.md` ✓ `43e4fe4`
+  `docs/README.md`, `docs/architecture/ARCHITECTURE.md`, `docs/architecture/DATA.md` ✓ `43e4fe4`
 - [x] **M3 — Missing contribution, security, and citation metadata.** Add
   `CONTRIBUTING.md`, `SECURITY.md`, and `CITATION.cff`. ✓ `be93cfa`
 
@@ -40,9 +40,9 @@ Sections are defined as:
   repo as a placeholder; replaced with an accurate one-liner and bumped
   `meta.updated`. ✓ `5a09f59`
 - [x] **D5 — Experimental/legacy status undocumented.** README and
-  `docs/ARCHITECTURE.md` document the current SDK client, retired fine-tuned
+  `docs/architecture/ARCHITECTURE.md` document the current SDK client, retired fine-tuned
   model IDs, and hardcoded Discord channel IDs. ✓ `43e4fe4`, `25723da`
-- [x] **D6 — Non-runnable sketch unlabeled.** `docs/ARCHITECTURE.md`
+- [x] **D6 — Non-runnable sketch unlabeled.** `docs/architecture/ARCHITECTURE.md`
   records the repaired imports, ordering, and training-call interface in
   `iris_apparently.py`, and explicitly distinguishes that repair from a
   full training run. ✓ `43e4fe4`, `513cdab`
@@ -50,15 +50,15 @@ Sections are defined as:
 ## Minor
 
 - [x] **N1 — Data files undocumented.** Schemas, row counts, and provenance
-  added in `docs/DATA.md`; CSV line endings are now LF.
+  added in `docs/architecture/DATA.md`; CSV line endings are now LF.
   ✓ `43e4fe4`, `f18f219`
 - [x] **N2 — Undocumented stub functions.** The eight `pass`-body functions in
   `hindsight.py` are now listed as planned work in
-  `docs/ARCHITECTURE.md`. ✓ `43e4fe4`
+  `docs/architecture/ARCHITECTURE.md`. ✓ `43e4fe4`
 - [x] **N3 — Broken markdown anchors.** Hand-written heading fragments did not
   match GitHub slugification (`#iris_apparentlypy`,
   `#data-semantic-iriscsv`, etc.); corrected and verified by script.
-  `README.md`, `docs/ARCHITECTURE.md` ✓ `02da58a`
+  `README.md`, `docs/architecture/ARCHITECTURE.md` ✓ `02da58a`
 
 ## Follow-up pass — deferred items resolved (2026-08-02)
 
@@ -114,7 +114,7 @@ On request, all model calls were migrated from the retired OpenAI fine-tuned
 
 - **Full training run of `iris_apparently.py`.** Blocked outside this
   repository on a CSV with `text, source_id, timestamp` columns; neither
-  tracked CSV has this schema (see `docs/DATA.md`). Owner: Iris research/data
+  tracked CSV has this schema (see `docs/architecture/DATA.md`). Owner: Iris research/data
   steward to supply an authorized dataset; model maintainer to run training
   and record results once it exists.
 - **Real end-to-end runs of the OpenRouter-backed scripts** (`discord_bot.py`,
@@ -134,7 +134,7 @@ On request, all model calls were migrated from the retired OpenAI fine-tuned
   `pass` bodies; documenting them under N2 did not implement them.
   Owner: hindsight maintainer to decide which planned outputs are supported,
   then implement and test those functions or remove unused declarations and
-  update `docs/ARCHITECTURE.md`. Blocked on that scope/output decision and
+  update `docs/architecture/ARCHITECTURE.md`. Blocked on that scope/output decision and
   the missing implementations, not on hosted CI.
 
 ## Current-API and GNN-alignment pass (2026-11-01)

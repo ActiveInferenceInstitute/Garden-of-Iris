@@ -280,7 +280,7 @@ run remain research-owner work; no training result or generalization claim is im
 | `DISCORD_BOT_KEY` | `discord_bot.py` | Discord bot token |
 | `AIRTABLE_API_KEY` | `discord_bot.py` | Airtable tarot-deck lookup |
 
-A template is provided in [.env.example](../.env.example). All model calls are
+A template is provided in [.env.example](../../.env.example). All model calls are
 routed through OpenRouter (`https://openrouter.ai/api/v1`) by `iris_llm.py`,
 which also sets OpenRouter attribution headers.
 
@@ -298,7 +298,7 @@ run `admission` until hosted delivery of those inputs exists. Model-transport un
 GNN controls use actual parser/checker processes. Optional component prerequisites
 and live-service acceptance remain separate.
 Arm runtimes and the test inventory are recorded in
-[`_generated/GATES.md`](_generated/GATES.md); see [RUN_GUIDE.md](RUN_GUIDE.md).
+[`_generated/GATES.md`](../_generated/GATES.md); see [RUN_GUIDE.md](../RUN_GUIDE.md).
 
 ## Caveats
 
@@ -313,4 +313,4 @@ Arm runtimes and the test inventory are recorded in
   run in the original server layout.
 - Garden-of-Iris specifies no Active Inference generative model, so it carries
   no GNN model file. See the "Related projects" section of the
-  [README](../README.md) for where GNN applies in the fleet.
+  [README](../../README.md) for where GNN applies in the fleet.

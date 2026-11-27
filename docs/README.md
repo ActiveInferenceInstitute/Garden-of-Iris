@@ -12,8 +12,8 @@ and the data pipeline that supports it.
 | Need | Document |
 | --- | --- |
 | Run the checks (one entry point, one command per arm) | [RUN_GUIDE.md](RUN_GUIDE.md) |
-| Understand the components and the data flow | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Know every data file, its columns, and its provenance | [DATA.md](DATA.md) |
+| Understand the components and the data flow | [ARCHITECTURE.md](architecture/ARCHITECTURE.md) |
+| Know every data file, its columns, and its provenance | [DATA.md](architecture/DATA.md) |
 | Find any long-lived document | [documentation-index.md](documentation-index.md) |
 | Read the current generated facts | [_generated/GATES.md](_generated/GATES.md) |
 
@@ -59,7 +59,7 @@ them.
 | Commands, defaults, CI steps | `scripts/gate.py`, `.github/workflows/ci.yml` | Run the arm; do not restate a command that the gate defines. |
 | Arm runtimes, test counts | [`_generated/GATES.md`](_generated/GATES.md), rendered from the `measure` receipts | `measure --label before\|after` then `report`; never hand-edit a number. |
 | The GNN pin | [`.github/gnn-pin.json`](../.github/gnn-pin.json) | Cite the revision from the pin file, not from an older guide. |
-| Script behavior, data schemas | The source and [DATA.md](DATA.md) | State explicitly when a script is a non-runnable sketch. |
+| Script behavior, data schemas | The source and [DATA.md](architecture/DATA.md) | State explicitly when a script is a non-runnable sketch. |
 
 ## Component quick reference
 
@@ -78,10 +78,19 @@ them.
 
 - Documentation is written in Markdown (GFM), one space per sentence, tables
   for schemas, and relative links only.
-- Data files are documented in [DATA.md](DATA.md) with their exact column names
+- Data files are documented in [DATA.md](architecture/DATA.md) with their exact column names
   as read by the code.
 - Claims about script behavior are grounded in the source; when a script is a
   non-runnable sketch (e.g. `iris_apparently.py`), that is stated explicitly in
-  [ARCHITECTURE.md](ARCHITECTURE.md) rather than implied.
+  [ARCHITECTURE.md](architecture/ARCHITECTURE.md) rather than implied.
 - Generated numbers live only in [_generated/](_generated/GATES.md); prose links
   there instead of copying a value.
+
+## Research manuscript
+
+- [FourThought as a Data Model for Community Language-Model Experiments](manuscript/README.md) — paper source and reproducible PDF build.
+
+## Documentation areas
+
+- [Architecture and data flow](architecture/README.md)
+- [Running and verifying the toolkit](operations/README.md)
