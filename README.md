@@ -32,7 +32,7 @@ TensorFlow sketch of an Iris model architecture.
 > (`https://openrouter.ai/api/v1`); the retired fine-tuned model slots map to
 > catalog-verified OpenRouter chat models.
 > Per-component notes, including what is runnable today, are in
-> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+> [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
 
 ## Contents
 
@@ -91,7 +91,7 @@ python discord_bot.py
 Its current component changes need real TensorFlow/sklearn qualification; full training
 also requires an authorized `text,source_id,timestamp` dataset and private `--output-dir`.
 Historical smoke does not qualify the current source. See
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#iris_apparentlypy-democraticllm-sketch-repaired-unverified).
+[docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md#iris_apparentlypy-democraticllm-sketch-repaired-unverified).
 
 ## Requirements
 
@@ -137,8 +137,8 @@ authorization; a privacy prompt is not a data-exclusion boundary.
 - [docs/](docs/) — documentation hub
 - [docs/documentation-index.md](docs/documentation-index.md) — flat index of long-lived docs
 - [docs/RUN_GUIDE.md](docs/RUN_GUIDE.md) — the gate entry point, its arms, and the CI jobs
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — component and pipeline overview
-- [docs/DATA.md](docs/DATA.md) — data files, schemas, and generated outputs
+- [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — component and pipeline overview
+- [docs/architecture/DATA.md](docs/architecture/DATA.md) — data files, schemas, and generated outputs
 - [docs/_generated/GATES.md](docs/_generated/GATES.md) — generated arm table, test inventory, and measured runtimes
 - [TO-DO.md](TO-DO.md) — review findings and improvement backlog
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute
@@ -176,3 +176,7 @@ the fleet repos above do.
 [CC BY 4.0](LICENSE) — Creative Commons Attribution 4.0 International, the
 Active Inference Institute's standard open license. See
 [CITATION.cff](CITATION.cff) for citation information.
+
+## Methods manuscript
+
+[FourThought as a Data Model for Community Language-Model Experiments](docs/manuscript/README.md) includes the paper source and reproducible PDF build.

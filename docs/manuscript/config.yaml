@@ -1,0 +1,34 @@
+{
+  "paper": {
+    "title": "FourThought as a Data Model for Community Language-Model Experiments",
+    "subtitle": "A source-based account of the Garden-of-Iris toolkit"
+  },
+  "authors": [
+    {
+      "name": "Active Inference Institute"
+    }
+  ],
+  "publication": {
+    "repository_url": "https://github.com/ActiveInferenceInstitute/Garden-of-Iris",
+    "release_status": "unreleased"
+  },
+  "metadata": {
+    "language": "en",
+    "license": "CC-BY-4.0"
+  },
+  "keywords": [
+    "collective intelligence",
+    "dataset provenance",
+    "language models"
+  ],
+  "manuscript_dir": "docs/manuscript",
+  "render": {
+    "formats": {
+      "pdf": true,
+      "html": false,
+      "slides": false,
+      "docx": false,
+      "epub": false
+    }
+  }
+}

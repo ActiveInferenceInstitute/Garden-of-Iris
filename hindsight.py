@@ -885,7 +885,7 @@ def load_merged_data(fourthought_path='prophet_thought_dump_ALL_THOUGHTS_2023.cs
 
 def main(argv=None):
     # Command-line entry point for the hindsight pipeline. Each stage reads
-    # its inputs from the CSVs produced by the previous stage (see docs/DATA.md).
+    # its inputs from the CSVs produced by the previous stage (see docs/architecture/DATA.md).
     import argparse
 
     parser = argparse.ArgumentParser(

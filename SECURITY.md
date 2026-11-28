@@ -27,7 +27,7 @@ from environment variables:
   the commit history.
 - Model calls use the current OpenAI SDK surface through `iris_llm.py`, which
   routes requests through OpenRouter and reads the key from the environment.
-  See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#iris_llmpy-openrouter-model-client)
+  See [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md#iris_llmpy-openrouter-model-client)
   for notes.
 
 ## Data sensitivity
